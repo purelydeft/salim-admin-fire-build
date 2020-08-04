@@ -153,9 +153,13 @@ exports.createAdmin = functions.database
         uid: key,
         email: original.email,
         password: original.password,
+        emailVerified : true
       })
       .then(() => {
-        console.log("Created: " + key);
+        admin
+        .database()
+        .ref("admins/" + key)
+        .update({password : null});
         return false;
       })
       .catch((err) => {
@@ -199,9 +203,13 @@ exports.createDriver = functions.database
         uid: key,
         email: original.email,
         password: original.password,
+        emailVerified : true
       })
       .then(() => {
-        console.log("Created: " + key);
+        admin
+        .database()
+        .ref("drivers/" + key)
+        .update({password : null});
         return false;
       })
       .catch((err) => {
@@ -238,16 +246,20 @@ exports.createPassenger = functions.database
   .onCreate(function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
-    // functions.logger.info({data : original, key});
+    functions.logger.info({data : original, key});
     admin
       .auth()
       .createUser({
         uid: key,
         email: original.email,
         password: original.password,
+        emailVerified : true
       })
       .then(() => {
-        console.log("Created: " + key);
+        admin
+        .database()
+        .ref("passengers/" + key)
+        .update({password : null});
         return false;
       })
       .catch((err) => {
