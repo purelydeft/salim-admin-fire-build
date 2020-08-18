@@ -1,11 +1,17 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-
 const stripe = require("stripe")("sk_test_oyluHsmvwh807tGsVw8ristF");
+
+const testAccountSid = "AC02867768a4ff76032b4c45ed8c7c8b46";
+const testAuthToken = "0d292a1bd4bb7ff9be50704ba4ea9e35";
+const liveAccountSid = "AC0aab684fa3476ca118cc1390759fd6d2";
+const liveAuthToken = "b7c788365cf1387b0ee67f0d1d9d5993";
+const client = require("twilio")(liveAccountSid, liveAuthToken);
 
 const TRIP_STATUS_WAITING = "waiting";
 const TRIP_STATUS_GOING = "going";
 const TRIP_STATUS_FINISHED = "finished";
+const TRIP_STATUS_CANCELED = "canceled";
 const PAYMENT_METHOD_CARD = "card";
 
 admin.initializeApp();
@@ -90,6 +96,16 @@ function sendMessage(token, title, message) {
   }
 }
 
+function sendSMS(to, mesage) {
+  client.messages
+    .create({
+      body: mesage,
+      from: "+12029534688",
+      to: to,
+    })
+    .then((message) => functions.logger.info(message.sid));
+}
+
 exports.deleteRider = functions.database
   .ref("/passengers/{id}")
   .onDelete(function (change, context) {
@@ -153,13 +169,13 @@ exports.createAdmin = functions.database
         uid: key,
         email: original.email,
         password: original.password,
-        emailVerified : true
+        emailVerified: true,
       })
       .then(() => {
         admin
-        .database()
-        .ref("admins/" + key)
-        .update({password : null});
+          .database()
+          .ref("admins/" + key)
+          .update({ password: null });
         return false;
       })
       .catch((err) => {
@@ -178,7 +194,7 @@ exports.updateAdmin = functions.database
       admin
         .auth()
         .updateUser(key, {
-          email: original.email,
+          email: after.email,
         })
         .then(() => {
           console.log("Updated: " + key);
@@ -203,13 +219,13 @@ exports.createDriver = functions.database
         uid: key,
         email: original.email,
         password: original.password,
-        emailVerified : true
+        emailVerified: true,
       })
       .then(() => {
         admin
-        .database()
-        .ref("drivers/" + key)
-        .update({password : null});
+          .database()
+          .ref("drivers/" + key)
+          .update({ password: null });
         return false;
       })
       .catch((err) => {
@@ -228,7 +244,7 @@ exports.updateDriver = functions.database
       admin
         .auth()
         .updateUser(key, {
-          email: original.email,
+          email: after.email,
         })
         .then(() => {
           console.log("Updated: " + key);
@@ -246,26 +262,28 @@ exports.createPassenger = functions.database
   .onCreate(function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
-    functions.logger.info({data : original, key});
-    admin
-      .auth()
-      .createUser({
-        uid: key,
-        email: original.email,
-        password: original.password,
-        emailVerified : true
-      })
-      .then(() => {
-        admin
-        .database()
-        .ref("passengers/" + key)
-        .update({password : null});
-        return false;
-      })
-      .catch((err) => {
-        console.log(err);
-        return false;
-      });
+    if (!original.providerId) {
+      admin
+        .auth()
+        .createUser({
+          uid: key,
+          email: original.email,
+          password: original.password,
+          emailVerified: true,
+        })
+        .then(() => {
+          admin
+            .database()
+            .ref("passengers/" + key)
+            .update({ password: null });
+          return false;
+        })
+        .catch((err) => {
+          console.log(err);
+          return false;
+        });
+    }
+    functions.logger.info({ data: original, key });
   });
 
 exports.updatePassenger = functions.database
@@ -278,7 +296,7 @@ exports.updatePassenger = functions.database
       admin
         .auth()
         .updateUser(key, {
-          email: original.email,
+          email: after.email,
         })
         .then(() => {
           console.log("Updated: " + key);
@@ -411,3 +429,146 @@ exports.makeReport = functions.database
       return false;
     }
   });
+
+exports.tripCreateTrigger = functions.database
+  .ref("/trips/{tripId}")
+  .onCreate(function (snapshot, context) {
+    const key = context.params.tripId;
+    const original = snapshot.val();
+    const driverId = original.driverId;
+    const passengerId = original.passengerId;
+
+    admin
+      .database()
+      .ref("drivers/" + driverId)
+      .once("value", function (snapshot) {
+        const driver = snapshot.val();
+        const msg = "Booking Accepted : Trip ID : " + key;
+        if (driver.isPhoneVerified) {
+          sendSMS("+91" + driver.phoneNumber, msg);
+        }
+      });
+    admin
+      .database()
+      .ref("passengers/" + passengerId)
+      .once("value", function (snapshot) {
+        const passenger = snapshot.val();
+        const msg = "Booking Accepted By Driver : Trip ID : " + key;
+        const msg1 = "OTP For Ride : " + key + " Is " + original.otp;
+        if (passenger.isPhoneVerified) {
+          sendSMS("+91" + passenger.phoneNumber, msg);
+          sendSMS("+91" + passenger.phoneNumber, msg1);
+        }
+      });
+  });
+
+exports.tripUpdateTrigger = functions.database
+  .ref("/trips/{tripId}")
+  .onUpdate(function (snapshot, context) {
+    const key = context.params.tripId;
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+    const driverId = after.driverId;
+    const passengerId = after.passengerId;
+
+
+    if (after.status == TRIP_STATUS_WAITING) {
+      admin
+        .database()
+        .ref("drivers/" + driverId)
+        .once("value", function (snapshot) {
+          const driver = snapshot.val();
+          const msg = "Pick Up Available : Trip ID : " + key;
+          if (driver.isPhoneVerified) {
+            sendSMS("+91" + driver.phoneNumber, msg);
+          }
+        });
+      admin
+        .database()
+        .ref("passengers/" + passengerId)
+        .once("value", function (snapshot) {
+          const passenger = snapshot.val();
+          const msg = "Driver To Be Arrived Shortly : Trip ID : " + key;
+          if (passenger.isPhoneVerified) {
+            sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+        });
+    } else if(after.status == TRIP_STATUS_GOING) {
+      admin
+        .database()
+        .ref("drivers/" + driverId)
+        .once("value", function (snapshot) {
+          const driver = snapshot.val();
+          const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
+          if (driver.isPhoneVerified) {
+            sendSMS("+91" + driver.phoneNumber, msg);
+          }
+        });
+      admin
+        .database()
+        .ref("passengers/" + passengerId)
+        .once("value", function (snapshot) {
+          const passenger = snapshot.val();
+          const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
+          if (passenger.isPhoneVerified) {
+            sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+        });
+    } else if(after.status == TRIP_STATUS_FINISHED) {
+      admin
+        .database()
+        .ref("drivers/" + driverId)
+        .once("value", function (snapshot) {
+          const driver = snapshot.val();
+          const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
+          if (driver.isPhoneVerified) {
+            sendSMS("+91" + driver.phoneNumber, msg);
+          }
+        });
+      admin
+        .database()
+        .ref("passengers/" + passengerId)
+        .once("value", function (snapshot) {
+          const passenger = snapshot.val();
+          const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
+          if (passenger.isPhoneVerified) {
+            sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+        });
+    } else if(after.status == TRIP_STATUS_CANCELED) {
+      admin
+        .database()
+        .ref("drivers/" + driverId)
+        .once("value", function (snapshot) {
+          const driver = snapshot.val();
+          const msg = "The Trip Got Canceled. Trip ID : " + key;
+          if (driver.isPhoneVerified) {
+            sendSMS("+91" + driver.phoneNumber, msg);
+          }
+        });
+      admin
+        .database()
+        .ref("passengers/" + passengerId)
+        .once("value", function (snapshot) {
+          const passenger = snapshot.val();
+          const msg = "The Trip Got Canceled. Trip ID : " + key;
+          if (passenger.isPhoneVerified) {
+            sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+        });
+    }
+
+    functions.logger.debug(after);
+    functions.logger.debug(before);
+  });
+
+// exports.generateSubscriptionInvoice = functions.database
+// .ref("/trips/{tripId}")
+// .onUpdate(function (snapshot, context) {
+//   const key = context.params.id;
+//   const before = snapshot.before.val();
+//   const after = snapshot.after.val();
+
+//   console.log(after);
+//   console.log(before);
+// });
