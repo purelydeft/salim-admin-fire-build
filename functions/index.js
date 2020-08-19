@@ -471,7 +471,6 @@ exports.tripUpdateTrigger = functions.database
     const driverId = after.driverId;
     const passengerId = after.passengerId;
 
-
     if (after.status == TRIP_STATUS_WAITING) {
       admin
         .database()
@@ -557,10 +556,15 @@ exports.tripUpdateTrigger = functions.database
           }
         });
     }
-
-    functions.logger.debug(after);
-    functions.logger.debug(before);
   });
+
+
+  exports.callApi = functions.https.onRequest((req, res) => {
+    res.status(200).send("API Hit Successfully");
+  });
+
+
+
 
 // exports.generateSubscriptionInvoice = functions.database
 // .ref("/trips/{tripId}")
