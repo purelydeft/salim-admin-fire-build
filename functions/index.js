@@ -8,6 +8,7 @@ const liveAccountSid = "AC0aab684fa3476ca118cc1390759fd6d2";
 const liveAuthToken = "b7c788365cf1387b0ee67f0d1d9d5993";
 
 const twilioNumber = "+12029534688";
+const twilioService = "VAc000c44d7d97e4ec29ab055936655883";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
 
@@ -582,8 +583,26 @@ exports.tripUpdateTrigger = functions.database
     }
   });
 
-exports.callApi = functions.https.onRequest((req, res) => {
-  res.status(200).send("API Hit Successfully");
+exports.sendOTP = functions.https.onRequest((req, res) => {
+  if(req.body.mobile) {
+    client.verify.services(twilioService).verifications.create({to: '+91' + req.body.mobile, channel: 'sms'})
+    .then(verification => {
+      res.status(200).json({
+        status : 1,
+        msg : "Otp Sent On Mobile Number +91" + req.body.mobile
+      });
+    }).catch(error => {
+      res.status(200).json({
+        status : -1,
+        msg : "Unable To Send OTP On Mobile Number +91" + req.body.mobile
+      });
+    });
+  } else {
+    res.status(200).json({
+      status : -1,
+      msg : "Mobile Number Not Found"
+    });
+  }
 });
 
 // exports.generateSubscriptionInvoice = functions.database
