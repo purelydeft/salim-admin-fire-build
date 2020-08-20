@@ -6,6 +6,9 @@ const testAccountSid = "AC02867768a4ff76032b4c45ed8c7c8b46";
 const testAuthToken = "0d292a1bd4bb7ff9be50704ba4ea9e35";
 const liveAccountSid = "AC0aab684fa3476ca118cc1390759fd6d2";
 const liveAuthToken = "b7c788365cf1387b0ee67f0d1d9d5993";
+
+const twilioNumber = "+12029534688";
+
 const client = require("twilio")(liveAccountSid, liveAuthToken);
 
 const TRIP_STATUS_WAITING = "waiting";
@@ -100,7 +103,7 @@ function sendSMS(to, mesage) {
   client.messages
     .create({
       body: mesage,
-      from: "+12029534688",
+      from: twilioNumber,
       to: to,
     })
     .then((message) => functions.logger.info(message.sid));
@@ -162,42 +165,19 @@ exports.createAdmin = functions.database
   .onCreate(function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
-    functions.logger.info({ data: original, key });
-    admin
-      .auth()
-      .createUser({
-        uid: key,
-        email: original.email,
-        password: original.password,
-        emailVerified: true,
-      })
-      .then(() => {
-        admin
-          .database()
-          .ref("admins/" + key)
-          .update({ password: null });
-        return false;
-      })
-      .catch((err) => {
-        console.log(err);
-        return false;
-      });
-  });
-
-exports.updateAdmin = functions.database
-  .ref("/admins/{id}")
-  .onUpdate(function (snapshot, context) {
-    const key = context.params.id;
-    const before = snapshot.before.val();
-    const after = snapshot.after.val();
-    if (after.email != before.email) {
+    if (original.createdBy == "admin") {
       admin
         .auth()
-        .updateUser(key, {
-          email: after.email,
+        .createUser({
+          uid: key,
+          email: original.email,
+          password: original.password,
         })
         .then(() => {
-          console.log("Updated: " + key);
+          admin
+            .database()
+            .ref("admins/" + key)
+            .update({ password: null });
           return false;
         })
         .catch((err) => {
@@ -207,19 +187,49 @@ exports.updateAdmin = functions.database
     }
   });
 
+exports.updateAdmin = functions.database
+  .ref("/admins/{id}")
+  .onUpdate(function (snapshot, context) {
+    const key = context.params.id;
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+    let updateData ;
+    let updateCheck = false;
+    if (after.email != before.email) {
+      updateData.email = after.email;
+      updateData.emailVerified = false;
+      updateCheck = true;
+    }
+    if (after.phoneNumber != before.phoneNumber) {
+      updateData.phoneNumber = after.phoneNumber;
+      updateCheck = true;
+    }
+    if(updateCheck) {
+      admin
+      .auth()
+      .updateUser(key, updateCheck)
+      .then(() => {
+        functions.logger.info("Updated: " + key);
+      })
+      .catch((err) => {
+        functions.logger.info(err);
+      });
+    }
+   
+  });
+
 exports.createDriver = functions.database
   .ref("/drivers/{id}")
   .onCreate(function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
-    // functions.logger.info({data : original, key});
+    if (original.createdBy == "admin") {
     admin
       .auth()
       .createUser({
         uid: key,
         email: original.email,
         password: original.password,
-        emailVerified: true,
       })
       .then(() => {
         admin
@@ -232,6 +242,7 @@ exports.createDriver = functions.database
         console.log(err);
         return false;
       });
+    }
   });
 
 exports.updateDriver = functions.database
@@ -240,20 +251,27 @@ exports.updateDriver = functions.database
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
+    let updateData ;
+    let updateCheck = false;
     if (after.email != before.email) {
+      updateData.email = after.email;
+      updateData.emailVerified = false;
+      updateCheck = true;
+    }
+    if (after.phoneNumber != before.phoneNumber) {
+      updateData.phoneNumber = after.phoneNumber;
+      updateCheck = true;
+    }
+    if(updateCheck) {
       admin
-        .auth()
-        .updateUser(key, {
-          email: after.email,
-        })
-        .then(() => {
-          console.log("Updated: " + key);
-          return false;
-        })
-        .catch((err) => {
-          console.log(err);
-          return false;
-        });
+      .auth()
+      .updateUser(key, updateCheck)
+      .then(() => {
+        functions.logger.info("Updated: " + key);
+      })
+      .catch((err) => {
+        functions.logger.info(err);
+      });
     }
   });
 
@@ -262,14 +280,14 @@ exports.createPassenger = functions.database
   .onCreate(function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
-    if (!original.providerId) {
+
+    if (original.createdBy == "admin") {
       admin
         .auth()
         .createUser({
           uid: key,
           email: original.email,
           password: original.password,
-          emailVerified: true,
         })
         .then(() => {
           admin
@@ -283,7 +301,6 @@ exports.createPassenger = functions.database
           return false;
         });
     }
-    functions.logger.info({ data: original, key });
   });
 
 exports.updatePassenger = functions.database
@@ -292,20 +309,27 @@ exports.updatePassenger = functions.database
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
+    let updateData ;
+    let updateCheck = false;
     if (after.email != before.email) {
+      updateData.email = after.email;
+      updateData.emailVerified = false;
+      updateCheck = true;
+    }
+    if (after.phoneNumber != before.phoneNumber) {
+      updateData.phoneNumber = after.phoneNumber;
+      updateCheck = true;
+    }
+    if(updateCheck) {
       admin
-        .auth()
-        .updateUser(key, {
-          email: after.email,
-        })
-        .then(() => {
-          console.log("Updated: " + key);
-          return false;
-        })
-        .catch((err) => {
-          console.log(err);
-          return false;
-        });
+      .auth()
+      .updateUser(key, updateCheck)
+      .then(() => {
+        functions.logger.info("Updated: " + key);
+      })
+      .catch((err) => {
+        functions.logger.info(err);
+      });
     }
   });
 
@@ -492,7 +516,7 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if(after.status == TRIP_STATUS_GOING) {
+    } else if (after.status == TRIP_STATUS_GOING) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -513,7 +537,7 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if(after.status == TRIP_STATUS_FINISHED) {
+    } else if (after.status == TRIP_STATUS_FINISHED) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -534,7 +558,7 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if(after.status == TRIP_STATUS_CANCELED) {
+    } else if (after.status == TRIP_STATUS_CANCELED) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -558,13 +582,9 @@ exports.tripUpdateTrigger = functions.database
     }
   });
 
-
-  exports.callApi = functions.https.onRequest((req, res) => {
-    res.status(200).send("API Hit Successfully");
-  });
-
-
-
+exports.callApi = functions.https.onRequest((req, res) => {
+  res.status(200).send("API Hit Successfully");
+});
 
 // exports.generateSubscriptionInvoice = functions.database
 // .ref("/trips/{tripId}")
