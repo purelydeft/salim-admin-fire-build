@@ -194,7 +194,7 @@ exports.updateAdmin = functions.database
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
-    let updateData ;
+    let updateData;
     let updateCheck = false;
     if (after.email != before.email) {
       updateData.email = after.email;
@@ -205,18 +205,18 @@ exports.updateAdmin = functions.database
       updateData.phoneNumber = after.phoneNumber;
       updateCheck = true;
     }
-    if(updateCheck) {
-      admin
-      .auth()
-      .updateUser(key, updateCheck)
-      .then(() => {
-        functions.logger.info("Updated: " + key);
-      })
-      .catch((err) => {
-        functions.logger.info(err);
-      });
-    }
    
+    if (updateCheck) {
+      admin
+        .auth()
+        .updateUser(key, updateData)
+        .then(() => {
+          functions.logger.info("Updated: " + key);
+        })
+        .catch((err) => {
+          functions.logger.info(err);
+        });
+    }
   });
 
 exports.createDriver = functions.database
@@ -225,24 +225,24 @@ exports.createDriver = functions.database
     const key = context.params.id;
     const original = snapshot.val();
     if (original.createdBy == "admin") {
-    admin
-      .auth()
-      .createUser({
-        uid: key,
-        email: original.email,
-        password: original.password,
-      })
-      .then(() => {
-        admin
-          .database()
-          .ref("drivers/" + key)
-          .update({ password: null });
-        return false;
-      })
-      .catch((err) => {
-        console.log(err);
-        return false;
-      });
+      admin
+        .auth()
+        .createUser({
+          uid: key,
+          email: original.email,
+          password: original.password,
+        })
+        .then(() => {
+          admin
+            .database()
+            .ref("drivers/" + key)
+            .update({ password: null });
+          return false;
+        })
+        .catch((err) => {
+          console.log(err);
+          return false;
+        });
     }
   });
 
@@ -252,7 +252,7 @@ exports.updateDriver = functions.database
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
-    let updateData ;
+    let updateData;
     let updateCheck = false;
     if (after.email != before.email) {
       updateData.email = after.email;
@@ -263,16 +263,16 @@ exports.updateDriver = functions.database
       updateData.phoneNumber = after.phoneNumber;
       updateCheck = true;
     }
-    if(updateCheck) {
+    if (updateCheck) {
       admin
-      .auth()
-      .updateUser(key, updateCheck)
-      .then(() => {
-        functions.logger.info("Updated: " + key);
-      })
-      .catch((err) => {
-        functions.logger.info(err);
-      });
+        .auth()
+        .updateUser(key, updateData)
+        .then(() => {
+          functions.logger.info("Updated: " + key);
+        })
+        .catch((err) => {
+          functions.logger.info(err);
+        });
     }
   });
 
@@ -310,27 +310,28 @@ exports.updatePassenger = functions.database
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
-    let updateData ;
+    let updateData = {};
     let updateCheck = false;
-    if (after.email != before.email) {
+    if ((after.email && !before.email) || (after.email != before.email)) {
       updateData.email = after.email;
       updateData.emailVerified = false;
       updateCheck = true;
     }
-    if (after.phoneNumber != before.phoneNumber) {
+    if ((after.phoneNumber && !before.phoneNumber) || (after.phoneNumber != before.phoneNumber)) {
       updateData.phoneNumber = after.phoneNumber;
       updateCheck = true;
     }
-    if(updateCheck) {
+    functions.logger.info(updateData);
+    if (updateCheck) {
       admin
-      .auth()
-      .updateUser(key, updateCheck)
-      .then(() => {
-        functions.logger.info("Updated: " + key);
-      })
-      .catch((err) => {
-        functions.logger.info(err);
-      });
+        .auth()
+        .updateUser(key, updateData)
+        .then(() => {
+          functions.logger.info("Updated: " + key);
+        })
+        .catch((err) => {
+          functions.logger.info(err);
+        });
     }
   });
 
@@ -584,24 +585,90 @@ exports.tripUpdateTrigger = functions.database
   });
 
 exports.sendOTP = functions.https.onRequest((req, res) => {
-  if(req.body.mobile) {
-    client.verify.services(twilioService).verifications.create({to: '+91' + req.body.mobile, channel: 'sms'})
-    .then(verification => {
-      res.status(200).json({
-        status : 1,
-        msg : "Otp Sent On Mobile Number +91" + req.body.mobile
-      });
-    }).catch(error => {
-      res.status(200).json({
-        status : -1,
-        msg : "Unable To Send OTP On Mobile Number +91" + req.body.mobile
-      });
-    });
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
   } else {
-    res.status(200).json({
-      status : -1,
-      msg : "Mobile Number Not Found"
-    });
+    if (req.body.mobile) {
+      client.verify
+        .services(twilioService)
+        .verifications.create({ to: "+91" + req.body.mobile, channel: "sms" })
+        .then((verification) => {
+          if (verification.status == "pending" && !verification.valid) {
+            res.status(200).json({
+              status: 1,
+              msg: "Otp Sent On Mobile Number +91" + req.body.mobile,
+            });
+          } else {
+            res.status(200).json({
+              status: -1,
+              msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
+            });
+          }
+        })
+        .catch((error) => {
+          res.status(200).json({
+            status: -1,
+            msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
+          });
+        });
+    } else {
+      res.status(200).json({
+        status: -1,
+        msg: "Mobile Number Not Found",
+      });
+    }
+  }
+});
+
+exports.verifyOTP = functions.https.onRequest((req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    if (req.body.mobile && req.body.otp) {
+      client.verify
+        .services(twilioService)
+        .verificationChecks.create({
+          to: "+91" + req.body.mobile,
+          code: req.body.otp,
+        })
+        .then((verification) => {
+          if (verification.status == "approved" && verification.valid) {
+            res.status(200).json({
+              status: 1,
+              msg: "Otp Verified For Mobile Number +91" + req.body.mobile,
+            });
+          } else {
+            res.status(200).json({
+              status: -1,
+              msg: "Invalid OTP",
+            });
+          }
+        })
+        .catch((error) => {
+          functions.logger.error(error);
+          res.status(200).json({
+            status: -1,
+            msg: "Unable To Verify OTP For Mobile Number +91" + req.body.mobile,
+          });
+        });
+    } else {
+      res.status(200).json({
+        status: -1,
+        msg: "Either Mobile Number Or OTP Not Found",
+      });
+    }
   }
 });
 
