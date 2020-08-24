@@ -672,13 +672,58 @@ exports.verifyOTP = functions.https.onRequest((req, res) => {
   }
 });
 
-// exports.generateSubscriptionInvoice = functions.database
-// .ref("/trips/{tripId}")
-// .onUpdate(function (snapshot, context) {
-//   const key = context.params.id;
-//   const before = snapshot.before.val();
-//   const after = snapshot.after.val();
 
-//   console.log(after);
-//   console.log(before);
-// });
+exports.sendSOSMessage = functions.https.onRequest((req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    if (req.body.id && req.body.type && req.body.tripId) {
+      const tripId = req.body.tripId;
+      const type = req.body.type;
+      const id = req.body.id;
+      if(type == 'passenger') {
+        admin.database().ref("passengers/" + id)
+        .once("value").then(snapshot => {
+          const passenger = snapshot.val();
+          if(passenger.emergency_mobile) {
+            const msg1 = "Hello "+ passenger.emergency_name + ", Testing SOS Message For Passenger " + passenger.name + " With TripId : " + tripId;
+            sendSMS('+91'+ passenger.emergency_mobile, msg1)
+          }
+        });
+      } else {
+        admin.database().ref("drivers/" + id)
+        .once("value").then(snapshot => {
+          const driver = snapshot.val();
+          if(driver.emergency_mobile) {
+            const msg2 = "Hello "+ driver.emergency_name + ", Testing SOS Message For Driver " + driver.name + " With TripId : " + tripId;
+            sendSMS('+91'+ driver.emergency_mobile, msg2)
+          }
+        });
+      }
+      admin.database().ref("business-management/")
+        .once("value").then(snapshot => {
+          const businessData = snapshot.val();
+          if(businessData.sosContact) {
+            const typeText = type == 'passenger' ? "Passenger " : "Driver";
+            const msg3 = "Hello Support, Testing SOS Message For " + typeText + "With TripId : " + tripId;
+            sendSMS("+91" + businessData.sosContact, msg3)
+          }
+        });
+        res.status(200).json({
+          status: 1,
+          msg: "SOS message send successfully.",
+        });
+    } else {
+      res.status(200).json({
+        status: -1,
+        msg: "Either Id Or Type Not Found",
+      });
+    }
+  }
+});
