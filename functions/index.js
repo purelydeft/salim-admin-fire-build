@@ -289,6 +289,7 @@ exports.createPassenger = functions.database
           uid: key,
           email: original.email,
           password: original.password,
+          phoneNumber : original.phoneNumber
         })
         .then(() => {
           admin
@@ -306,28 +307,35 @@ exports.createPassenger = functions.database
 
 exports.updatePassenger = functions.database
   .ref("/passengers/{id}")
-  .onUpdate(function (snapshot, context) {
+  .onUpdate(async function (snapshot, context) {
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
+    const user = await admin.auth().getUser(key);
     let updateData = {};
     let updateCheck = false;
+    if ((after.name && !before.name) || (after.name != before.name)) {
+      updateData.displayName = after.name;
+      updateCheck = true;
+    }
     if ((after.email && !before.email) || (after.email != before.email)) {
       updateData.email = after.email;
       updateData.emailVerified = false;
       updateCheck = true;
     }
-    if ((after.phoneNumber && !before.phoneNumber) || (after.phoneNumber != before.phoneNumber)) {
-      updateData.phoneNumber = after.phoneNumber;
+    if (after.password && !user.passwordHash) {
+      updateData.password = after.password;
       updateCheck = true;
     }
-    functions.logger.info(updateData);
     if (updateCheck) {
       admin
         .auth()
         .updateUser(key, updateData)
         .then(() => {
           functions.logger.info("Updated: " + key);
+          if(after.password) {
+            admin.database().ref('passengers/' + key + '/password').remove();
+          }
         })
         .catch((err) => {
           functions.logger.info(err);
@@ -442,11 +450,18 @@ exports.makeReport = functions.database
             var rating = stars / count;
             console.log("Rating:" + rating);
 
-            if (rating != "NaN")
-              admin
+            if (rating != "NaN") {
+			  admin
                 .database()
                 .ref("/drivers/" + original.driverId)
                 .update({ rating: rating.toFixed(1) });
+			} else {
+			  admin
+                .database()
+                .ref("/drivers/" + original.driverId)
+                .update({ rating: 1 });
+			}
+            
           }
         });
 
@@ -671,7 +686,6 @@ exports.verifyOTP = functions.https.onRequest((req, res) => {
     }
   }
 });
-
 
 exports.sendSOSMessage = functions.https.onRequest((req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
