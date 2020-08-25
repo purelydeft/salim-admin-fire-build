@@ -22,9 +22,8 @@ admin.initializeApp();
 
 exports.sendPush = functions.database
   .ref("notifications/{notification}")
-  .onWrite(function (change, context) {
+  .onCreate(function (change, context) {
     const original = change.after.val();
-
     if (original.type == "riders") {
       admin
         .database()
@@ -205,7 +204,7 @@ exports.updateAdmin = functions.database
       updateData.phoneNumber = after.phoneNumber;
       updateCheck = true;
     }
-   
+
     if (updateCheck) {
       admin
         .auth()
@@ -289,7 +288,7 @@ exports.createPassenger = functions.database
           uid: key,
           email: original.email,
           password: original.password,
-          phoneNumber : original.phoneNumber
+          phoneNumber: original.phoneNumber,
         })
         .then(() => {
           admin
@@ -314,11 +313,11 @@ exports.updatePassenger = functions.database
     const user = await admin.auth().getUser(key);
     let updateData = {};
     let updateCheck = false;
-    if ((after.name && !before.name) || (after.name != before.name)) {
+    if ((after.name && !before.name) || after.name != before.name) {
       updateData.displayName = after.name;
       updateCheck = true;
     }
-    if ((after.email && !before.email) || (after.email != before.email)) {
+    if ((after.email && !before.email) || after.email != before.email) {
       updateData.email = after.email;
       updateData.emailVerified = false;
       updateCheck = true;
@@ -333,8 +332,11 @@ exports.updatePassenger = functions.database
         .updateUser(key, updateData)
         .then(() => {
           functions.logger.info("Updated: " + key);
-          if(after.password) {
-            admin.database().ref('passengers/' + key + '/password').remove();
+          if (after.password) {
+            admin
+              .database()
+              .ref("passengers/" + key + "/password")
+              .remove();
           }
         })
         .catch((err) => {
@@ -451,17 +453,16 @@ exports.makeReport = functions.database
             console.log("Rating:" + rating);
 
             if (rating != "NaN") {
-			  admin
+              admin
                 .database()
                 .ref("/drivers/" + original.driverId)
                 .update({ rating: rating.toFixed(1) });
-			} else {
-			  admin
+            } else {
+              admin
                 .database()
                 .ref("/drivers/" + original.driverId)
                 .update({ rating: 1 });
-			}
-            
+            }
           }
         });
 
@@ -533,7 +534,7 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if (after.status == TRIP_STATUS_GOING) {
+    } else if (after.status == TRIP_STATUS_GOING && before.status == TRIP_STATUS_WAITING) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -554,7 +555,7 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if (after.status == TRIP_STATUS_FINISHED) {
+    } else if (after.status == TRIP_STATUS_FINISHED && before.status == TRIP_STATUS_GOING) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -701,38 +702,63 @@ exports.sendSOSMessage = functions.https.onRequest((req, res) => {
       const tripId = req.body.tripId;
       const type = req.body.type;
       const id = req.body.id;
-      if(type == 'passenger') {
-        admin.database().ref("passengers/" + id)
-        .once("value").then(snapshot => {
-          const passenger = snapshot.val();
-          if(passenger.emergency_mobile) {
-            const msg1 = "Hello "+ passenger.emergency_name + ", Testing SOS Message For Passenger " + passenger.name + " With TripId : " + tripId;
-            sendSMS('+91'+ passenger.emergency_mobile, msg1)
-          }
-        });
+      if (type == "passenger") {
+        admin
+          .database()
+          .ref("passengers/" + id)
+          .once("value")
+          .then((snapshot) => {
+            const passenger = snapshot.val();
+            if (passenger.emergency_mobile) {
+              const msg1 =
+                "Hello " +
+                passenger.emergency_name +
+                ", Testing SOS Message For Passenger " +
+                passenger.name +
+                " With TripId : " +
+                tripId;
+              sendSMS("+91" + passenger.emergency_mobile, msg1);
+            }
+          });
       } else {
-        admin.database().ref("drivers/" + id)
-        .once("value").then(snapshot => {
-          const driver = snapshot.val();
-          if(driver.emergency_mobile) {
-            const msg2 = "Hello "+ driver.emergency_name + ", Testing SOS Message For Driver " + driver.name + " With TripId : " + tripId;
-            sendSMS('+91'+ driver.emergency_mobile, msg2)
-          }
-        });
+        admin
+          .database()
+          .ref("drivers/" + id)
+          .once("value")
+          .then((snapshot) => {
+            const driver = snapshot.val();
+            if (driver.emergency_mobile) {
+              const msg2 =
+                "Hello " +
+                driver.emergency_name +
+                ", Testing SOS Message For Driver " +
+                driver.name +
+                " With TripId : " +
+                tripId;
+              sendSMS("+91" + driver.emergency_mobile, msg2);
+            }
+          });
       }
-      admin.database().ref("business-management/")
-        .once("value").then(snapshot => {
+      admin
+        .database()
+        .ref("business-management/")
+        .once("value")
+        .then((snapshot) => {
           const businessData = snapshot.val();
-          if(businessData.sosContact) {
-            const typeText = type == 'passenger' ? "Passenger " : "Driver";
-            const msg3 = "Hello Support, Testing SOS Message For " + typeText + "With TripId : " + tripId;
-            sendSMS("+91" + businessData.sosContact, msg3)
+          if (businessData.sosContact) {
+            const typeText = type == "passenger" ? "Passenger " : "Driver";
+            const msg3 =
+              "Hello Support, Testing SOS Message For " +
+              typeText +
+              "With TripId : " +
+              tripId;
+            sendSMS("+91" + businessData.sosContact, msg3);
           }
         });
-        res.status(200).json({
-          status: 1,
-          msg: "SOS message send successfully.",
-        });
+      res.status(200).json({
+        status: 1,
+        msg: "SOS message send successfully.",
+      });
     } else {
       res.status(200).json({
         status: -1,
