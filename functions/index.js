@@ -234,8 +234,7 @@ exports.createDriver = functions.database
         .then(() => {
           admin
             .database()
-            .ref("drivers/" + key)
-            .update({ password: null });
+            .ref("drivers/" + key + "/password").remove();
           return false;
         })
         .catch((err) => {
@@ -245,21 +244,26 @@ exports.createDriver = functions.database
     }
   });
 
-exports.updateDriver = functions.database
+  exports.updateDriver = functions.database
   .ref("/drivers/{id}")
-  .onUpdate(function (snapshot, context) {
+  .onUpdate(async function (snapshot, context) {
     const key = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
-    let updateData;
+    const user = await admin.auth().getUser(key);
+    let updateData = {};
     let updateCheck = false;
-    if (after.email != before.email) {
+    if ((after.name && !before.name) || after.name != before.name) {
+      updateData.displayName = after.name;
+      updateCheck = true;
+    }
+    if ((after.email && !before.email) || after.email != before.email) {
       updateData.email = after.email;
       updateData.emailVerified = false;
       updateCheck = true;
     }
-    if (after.phoneNumber != before.phoneNumber) {
-      updateData.phoneNumber = after.phoneNumber;
+    if (after.password && !user.passwordHash) {
+      updateData.password = after.password;
       updateCheck = true;
     }
     if (updateCheck) {
@@ -268,12 +272,48 @@ exports.updateDriver = functions.database
         .updateUser(key, updateData)
         .then(() => {
           functions.logger.info("Updated: " + key);
+          if (after.password) {
+            admin
+              .database()
+              .ref("drivers/" + key + "/password")
+              .remove();
+          }
         })
         .catch((err) => {
           functions.logger.info(err);
         });
     }
   });
+
+// exports.updateDriver = functions.database
+//   .ref("/drivers/{id}")
+//   .onUpdate(function (snapshot, context) {
+//     const key = context.params.id;
+//     const before = snapshot.before.val();
+//     const after = snapshot.after.val();
+//     let updateData;
+//     let updateCheck = false;
+//     if (after.email != before.email) {
+//       updateData.email = after.email;
+//       updateData.emailVerified = false;
+//       updateCheck = true;
+//     }
+//     if (after.phoneNumber != before.phoneNumber) {
+//       updateData.phoneNumber = after.phoneNumber;
+//       updateCheck = true;
+//     }
+//     if (updateCheck) {
+//       admin
+//         .auth()
+//         .updateUser(key, updateData)
+//         .then(() => {
+//           functions.logger.info("Updated: " + key);
+//         })
+//         .catch((err) => {
+//           functions.logger.info(err);
+//         });
+//     }
+//   });
 
 exports.createPassenger = functions.database
   .ref("/passengers/{id}")
@@ -288,13 +328,11 @@ exports.createPassenger = functions.database
           uid: key,
           email: original.email,
           password: original.password,
-          phoneNumber: original.phoneNumber,
         })
         .then(() => {
           admin
             .database()
-            .ref("passengers/" + key)
-            .update({ password: null });
+            .ref("passengers/" + key + "/password").remove();
           return false;
         })
         .catch((err) => {
