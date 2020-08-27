@@ -23,7 +23,7 @@ admin.initializeApp();
 exports.sendPush = functions.database
   .ref("notifications/{notification}")
   .onCreate(function (change, context) {
-    const original = change.after.val();
+    const original = change.val();
     if (original.type == "riders") {
       admin
         .database()
@@ -200,10 +200,10 @@ exports.updateAdmin = functions.database
       updateData.emailVerified = false;
       updateCheck = true;
     }
-    if (after.phoneNumber != before.phoneNumber) {
-      updateData.phoneNumber = after.phoneNumber;
-      updateCheck = true;
-    }
+    // if (after.phoneNumber != before.phoneNumber) {
+    //   updateData.phoneNumber = after.phoneNumber;
+    //   updateCheck = true;
+    // }
 
     if (updateCheck) {
       admin
