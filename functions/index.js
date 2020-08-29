@@ -220,7 +220,7 @@ exports.updateAdmin = functions.database
 
 exports.createDriver = functions.database
   .ref("/drivers/{id}")
-  .onCreate(function (snapshot, context) {
+  .onCreate(async function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
     if (original.createdBy == "admin") {
@@ -241,6 +241,21 @@ exports.createDriver = functions.database
           console.log(err);
           return false;
         });
+    } else if (original.createdBy == "self" && (original.providerId == 'google.com' || original.providerId == 'facebook.com')) {
+      const user = await admin.auth().getUser(key);
+      if(original.isEmailVerified && !user.emailVerified) {
+        admin
+        .auth()
+        .updateUser(key,{
+          emailVerified : true
+        })
+        .then(() => {
+        })
+        .catch((err) => {
+          console.log(err);
+          return false;
+        });
+      }
     }
   });
 
@@ -264,6 +279,10 @@ exports.createDriver = functions.database
     }
     if (after.password && !user.passwordHash) {
       updateData.password = after.password;
+      updateCheck = true;
+    }
+    if(after.isEmailVerified && !user.emailVerified) {
+      updateData.emailVerified = true;
       updateCheck = true;
     }
     if (updateCheck) {
@@ -317,10 +336,9 @@ exports.createDriver = functions.database
 
 exports.createPassenger = functions.database
   .ref("/passengers/{id}")
-  .onCreate(function (snapshot, context) {
+  .onCreate(async function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
-
     if (original.createdBy == "admin") {
       admin
         .auth()
@@ -339,6 +357,21 @@ exports.createPassenger = functions.database
           console.log(err);
           return false;
         });
+    } else if (original.createdBy == "self" && (original.providerId == 'google.com' || original.providerId == 'facebook.com')) {
+      const user = await admin.auth().getUser(key);
+      if(original.isEmailVerified && !user.emailVerified) {
+        admin
+        .auth()
+        .updateUser(key, {
+          emailVerified : true
+        })
+        .then(() => {
+        })
+        .catch((err) => {
+          console.log(err);
+          return false;
+        });
+      }
     }
   });
 
@@ -362,6 +395,10 @@ exports.updatePassenger = functions.database
     }
     if (after.password && !user.passwordHash) {
       updateData.password = after.password;
+      updateCheck = true;
+    }
+    if(after.isEmailVerified && !user.emailVerified) {
+      updateData.emailVerified = true;
       updateCheck = true;
     }
     if (updateCheck) {
@@ -482,8 +519,8 @@ exports.makeReport = functions.database
           var count = 0;
           if (snap != null) {
             snap.forEach(function (trip) {
-              if (trip.val().rating != null) {
-                stars += parseInt(trip.val().rating);
+              if (trip.val().passengerRating && trip.val().passengerRating.rating != null) {
+                stars += parseInt(trip.val().passengerRating.rating);
                 count++;
               }
             });
