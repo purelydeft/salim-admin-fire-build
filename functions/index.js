@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const stripe = require("stripe")("sk_test_oyluHsmvwh807tGsVw8ristF");
+const moment = require("moment");
 
 const testAccountSid = "AC02867768a4ff76032b4c45ed8c7c8b46";
 const testAuthToken = "0d292a1bd4bb7ff9be50704ba4ea9e35";
@@ -22,6 +23,116 @@ admin.initializeApp();
 
 exports.sendPush = functions.database
   .ref("notifications/{notification}")
+  .onCreate(function (change, context) {
+    const original = change.val();
+    if (original.type == "riders") {
+      admin
+        .database()
+        .ref("passengers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+    } else if (original.type == "drivers") {
+      admin
+        .database()
+        .ref("drivers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+    } else if (original.type == "both") {
+      admin
+        .database()
+        .ref("passengers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+
+      admin
+        .database()
+        .ref("drivers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+    }
+  });
+
+exports.sendPushPromo = functions.database
+  .ref("promotions/{promotionId}")
+  .onCreate(function (change, context) {
+    const original = change.val();
+    if (original.type == "riders") {
+      admin
+        .database()
+        .ref("passengers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+    } else if (original.type == "drivers") {
+      admin
+        .database()
+        .ref("drivers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+    } else if (original.type == "both") {
+      admin
+        .database()
+        .ref("passengers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+
+      admin
+        .database()
+        .ref("drivers")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
+        });
+    }
+  });
+
+  exports.sendPushNews = functions.database
+  .ref("news/{newsId}")
   .onCreate(function (change, context) {
     const original = change.val();
     if (original.type == "riders") {
@@ -841,4 +952,31 @@ exports.sendSOSMessage = functions.https.onRequest((req, res) => {
       });
     }
   }
+});
+
+exports.scheduledFunction = functions.pubsub.schedule('every 15 minutes').onRun((context) => {
+  const date = moment();
+  admin
+  .database()
+  .ref("scheduled-trips")
+  .once("value", function (snapshot) {
+    const schedules = snapshot.val();
+    for (const [passengerId, trips] of Object.entries(schedules)) {
+      let expiredTrips = [];
+      for (const [tripKey, tripData] of Object.entries(trips)) {
+        const scheduleDate = moment(new Date(tripData.departDate));
+        if(date.isAfter(scheduleDate)) {
+          tripData.key = tripKey;
+          expiredTrips.push(tripData)
+        }
+      }
+      expiredTrips.forEach(element=>{
+        admin
+          .database()
+          .ref("scheduled-trips/" + passengerId + '/' + element.key).remove().then(()=>{
+
+          })
+      })
+    }
+  });
 });
