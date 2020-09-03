@@ -131,7 +131,7 @@ exports.sendPushPromo = functions.database
     }
   });
 
-  exports.sendPushNews = functions.database
+exports.sendPushNews = functions.database
   .ref("news/{newsId}")
   .onCreate(function (change, context) {
     const original = change.val();
@@ -345,32 +345,36 @@ exports.createDriver = functions.database
         .then(() => {
           admin
             .database()
-            .ref("drivers/" + key + "/password").remove();
+            .ref("drivers/" + key + "/password")
+            .remove();
           return false;
         })
         .catch((err) => {
           console.log(err);
           return false;
         });
-    } else if (original.createdBy == "self" && (original.providerId == 'google.com' || original.providerId == 'facebook.com')) {
+    } else if (
+      original.createdBy == "self" &&
+      (original.providerId == "google.com" ||
+        original.providerId == "facebook.com")
+    ) {
       const user = await admin.auth().getUser(key);
-      if(original.isEmailVerified && !user.emailVerified) {
+      if (original.isEmailVerified && !user.emailVerified) {
         admin
-        .auth()
-        .updateUser(key,{
-          emailVerified : true
-        })
-        .then(() => {
-        })
-        .catch((err) => {
-          console.log(err);
-          return false;
-        });
+          .auth()
+          .updateUser(key, {
+            emailVerified: true,
+          })
+          .then(() => {})
+          .catch((err) => {
+            console.log(err);
+            return false;
+          });
       }
     }
   });
 
-  exports.updateDriver = functions.database
+exports.updateDriver = functions.database
   .ref("/drivers/{id}")
   .onUpdate(async function (snapshot, context) {
     const key = context.params.id;
@@ -392,7 +396,7 @@ exports.createDriver = functions.database
       updateData.password = after.password;
       updateCheck = true;
     }
-    if(after.isEmailVerified && !user.emailVerified) {
+    if (after.isEmailVerified && !user.emailVerified) {
       updateData.emailVerified = true;
       updateCheck = true;
     }
@@ -461,27 +465,31 @@ exports.createPassenger = functions.database
         .then(() => {
           admin
             .database()
-            .ref("passengers/" + key + "/password").remove();
+            .ref("passengers/" + key + "/password")
+            .remove();
           return false;
         })
         .catch((err) => {
           console.log(err);
           return false;
         });
-    } else if (original.createdBy == "self" && (original.providerId == 'google.com' || original.providerId == 'facebook.com')) {
+    } else if (
+      original.createdBy == "self" &&
+      (original.providerId == "google.com" ||
+        original.providerId == "facebook.com")
+    ) {
       const user = await admin.auth().getUser(key);
-      if(original.isEmailVerified && !user.emailVerified) {
+      if (original.isEmailVerified && !user.emailVerified) {
         admin
-        .auth()
-        .updateUser(key, {
-          emailVerified : true
-        })
-        .then(() => {
-        })
-        .catch((err) => {
-          console.log(err);
-          return false;
-        });
+          .auth()
+          .updateUser(key, {
+            emailVerified: true,
+          })
+          .then(() => {})
+          .catch((err) => {
+            console.log(err);
+            return false;
+          });
       }
     }
   });
@@ -508,7 +516,7 @@ exports.updatePassenger = functions.database
       updateData.password = after.password;
       updateCheck = true;
     }
-    if(after.isEmailVerified && !user.emailVerified) {
+    if (after.isEmailVerified && !user.emailVerified) {
       updateData.emailVerified = true;
       updateCheck = true;
     }
@@ -630,7 +638,10 @@ exports.makeReport = functions.database
           var count = 0;
           if (snap != null) {
             snap.forEach(function (trip) {
-              if (trip.val().passengerRating && trip.val().passengerRating.rating != null) {
+              if (
+                trip.val().passengerRating &&
+                trip.val().passengerRating.rating != null
+              ) {
                 stars += parseInt(trip.val().passengerRating.rating);
                 count++;
               }
@@ -720,7 +731,10 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if (after.status == TRIP_STATUS_GOING && before.status == TRIP_STATUS_WAITING) {
+    } else if (
+      after.status == TRIP_STATUS_GOING &&
+      before.status == TRIP_STATUS_WAITING
+    ) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -741,7 +755,10 @@ exports.tripUpdateTrigger = functions.database
             sendSMS("+91" + passenger.phoneNumber, msg);
           }
         });
-    } else if (after.status == TRIP_STATUS_FINISHED && before.status == TRIP_STATUS_GOING) {
+    } else if (
+      after.status == TRIP_STATUS_FINISHED &&
+      before.status == TRIP_STATUS_GOING
+    ) {
       admin
         .database()
         .ref("drivers/" + driverId)
@@ -954,29 +971,245 @@ exports.sendSOSMessage = functions.https.onRequest((req, res) => {
   }
 });
 
-exports.scheduledFunction = functions.pubsub.schedule('every 15 minutes').onRun((context) => {
-  const date = moment();
-  admin
-  .database()
-  .ref("scheduled-trips")
-  .once("value", function (snapshot) {
-    const schedules = snapshot.val();
-    for (const [passengerId, trips] of Object.entries(schedules)) {
-      let expiredTrips = [];
-      for (const [tripKey, tripData] of Object.entries(trips)) {
-        const scheduleDate = moment(new Date(tripData.departDate));
-        if(date.isAfter(scheduleDate)) {
-          tripData.key = tripKey;
-          expiredTrips.push(tripData)
+exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    if (req.body.code && req.body.id && req.body.type) {
+      const code = req.body.code;
+      const type = req.body.type;
+      const id = req.body.id;
+
+      if (id == code) {
+        res.status(200).json({
+          status: -1,
+          msg: "You cannot use your own referral code.",
+        });
+      } else {
+        const businessData = (
+          await admin
+            .database()
+            .ref("business-management")
+            .once("value")
+        ).val();
+        const driverReferrer = (
+          await admin
+            .database()
+            .ref("drivers/" + code)
+            .once("value")
+        ).val();
+        const passengerReferrer = (
+          await admin
+            .database()
+            .ref("passengers/" + code)
+            .once("value")
+        ).val();
+
+        let referee;
+
+        if (type == "passenger") {
+          referee = (
+            await admin
+              .database()
+              .ref("passengers/" + id)
+              .once("value")
+          ).val();
+        } else {
+          referee = (
+            await admin
+              .database()
+              .ref("drivers/" + id)
+              .once("value")
+          ).val();
+        }
+
+        if (driverReferrer) {
+          let referrerBal = driverReferrer.balance ? driverReferrer.balance : 0;
+          await admin
+            .database()
+            .ref("drivers/" + code)
+            .update({
+              balance: referrerBal + businessData.referral.referrerAmount,
+            });
+          const referrerBalData = {
+            driver_email: driverReferrer.email,
+            driver_id: code,
+            amount: businessData.referral.referrerAmount,
+            created: Date.now(),
+            description: "Referral Bonus",
+            type: 1,
+          };
+          await admin
+            .database()
+            .ref("wallet-transactions")
+            .push(referrerBalData);
+
+          let refereeBal = referee.balance ? referee.balance : 0;
+          if (type == "passenger") {
+            await admin
+              .database()
+              .ref("passengers/" + id)
+              .update({
+                balance: refereeBal + businessData.referral.refereeAmount,
+                referredBy: code,
+                referredType: "driver",
+              });
+            const refereeBalData = {
+              passenger_email: referee.email,
+              passenger_id: id,
+              amount: businessData.referral.refereeAmount,
+              created: Date.now(),
+              description: "Referral Bonus",
+              type: 1,
+            };
+            await admin
+              .database()
+              .ref("wallet-transactions")
+              .push(refereeBalData);
+          } else {
+            await admin
+              .database()
+              .ref("passengers/" + id)
+              .update({
+                balance: refereeBal + businessData.referral.refereeAmount,
+                referredBy: code,
+                referredType: "driver",
+              });
+            const refereeBalData = {
+              driver_email: referee.email,
+              driver_id: id,
+              amount: businessData.referral.refereeAmount,
+              created: Date.now(),
+              description: "Referral Bonus",
+              type: 1,
+            };
+            await admin
+              .database()
+              .ref("wallet-transactions")
+              .push(refereeBalData);
+          }
+          res.status(200).json({
+            status: 1,
+            msg: "Referral Code Successfully Applied.",
+          });
+        } else if (passengerReferrer) {
+          let referrerBal = passengerReferrer.balance
+            ? passengerReferrer.balance
+            : 0;
+          await admin
+            .database()
+            .ref("passengers/" + code)
+            .update({
+              balance: referrerBal + businessData.referral.referrerAmount,
+            });
+          const referrerBalData = {
+            passenger_email: passengerReferrer.email,
+            passenger_id: code,
+            amount: businessData.referral.referrerAmount,
+            created: Date.now(),
+            description: "Referral Bonus",
+            type: 1,
+          };
+          await admin
+            .database()
+            .ref("wallet-transactions")
+            .push(referrerBalData);
+
+          let refereeBal = referee.balance ? referee.balance : 0;
+          if (type == "passenger") {
+            await admin
+              .database()
+              .ref("passengers/" + id)
+              .update({
+                balance: refereeBal + businessData.referral.refereeAmount,
+                referredBy: code,
+                referredType: "passenger",
+              });
+            const refereeBalData = {
+              passenger_email: referee.email,
+              passenger_id: id,
+              amount: businessData.referral.refereeAmount,
+              created: Date.now(),
+              description: "Referral Bonus",
+              type: 1,
+            };
+            await admin
+              .database()
+              .ref("wallet-transactions")
+              .push(refereeBalData);
+          } else {
+            await admin
+              .database()
+              .ref("passengers/" + id)
+              .update({
+                balance: refereeBal + businessData.referral.refereeAmount,
+                referredBy: code,
+                referredType: "driver",
+              });
+            const refereeBalData = {
+              driver_email: referee.email,
+              driver_id: id,
+              amount: businessData.referral.refereeAmount,
+              created: Date.now(),
+              description: "Referral Bonus",
+              type: 1,
+            };
+            await admin
+              .database()
+              .ref("wallet-transactions")
+              .push(refereeBalData);
+          }
+          res.status(200).json({
+            status: 1,
+            msg: "Referral Code Successfully Applied.",
+          });
+        } else {
+          res.status(200).json({
+            status: -1,
+            msg: "Invalid Referral Code",
+          });
         }
       }
-      expiredTrips.forEach(element=>{
-        admin
-          .database()
-          .ref("scheduled-trips/" + passengerId + '/' + element.key).remove().then(()=>{
-
-          })
-      })
+    } else {
+      res.status(200).json({
+        status: -1,
+        msg: "Either Code, Id Or Type Not Found",
+      });
     }
-  });
+  }
 });
+
+exports.scheduledFunction = functions.pubsub
+  .schedule("every 15 minutes")
+  .onRun((context) => {
+    const date = moment();
+    admin
+      .database()
+      .ref("scheduled-trips")
+      .once("value", function (snapshot) {
+        const schedules = snapshot.val();
+        for (const [passengerId, trips] of Object.entries(schedules)) {
+          let expiredTrips = [];
+          for (const [tripKey, tripData] of Object.entries(trips)) {
+            const scheduleDate = moment(new Date(tripData.departDate));
+            if (date.isAfter(scheduleDate)) {
+              tripData.key = tripKey;
+              expiredTrips.push(tripData);
+            }
+          }
+          expiredTrips.forEach((element) => {
+            admin
+              .database()
+              .ref("scheduled-trips/" + passengerId + "/" + element.key)
+              .remove()
+              .then(() => {});
+          });
+        }
+      });
+  });
