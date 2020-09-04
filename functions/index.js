@@ -2,6 +2,18 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const stripe = require("stripe")("sk_test_oyluHsmvwh807tGsVw8ristF");
 const moment = require("moment");
+const nodemailer = require("nodemailer");
+const ejs = require("ejs");
+const transporter = nodemailer.createTransport({
+  name: "Wrap Speed Taxi",
+  host: "mail.wrapspeedtaxi.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: "noreply@wrapspeedtaxi.com",
+    pass: ".K~AsjE7}wPC",
+  },
+});
 
 const testAccountSid = "AC02867768a4ff76032b4c45ed8c7c8b46";
 const testAuthToken = "0d292a1bd4bb7ff9be50704ba4ea9e35";
@@ -703,12 +715,15 @@ exports.tripCreateTrigger = functions.database
 
 exports.tripUpdateTrigger = functions.database
   .ref("/trips/{tripId}")
-  .onUpdate(function (snapshot, context) {
+  .onUpdate(async function (snapshot, context) {
     const key = context.params.tripId;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
     const driverId = after.driverId;
     const passengerId = after.passengerId;
+
+    functions.logger.info(before);
+    functions.logger.info(after);
 
     if (after.status == TRIP_STATUS_WAITING) {
       admin
@@ -759,26 +774,84 @@ exports.tripUpdateTrigger = functions.database
       after.status == TRIP_STATUS_FINISHED &&
       before.status == TRIP_STATUS_GOING
     ) {
-      admin
-        .database()
-        .ref("drivers/" + driverId)
-        .once("value", function (snapshot) {
-          const driver = snapshot.val();
-          const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
-          if (driver.isPhoneVerified) {
-            sendSMS("+91" + driver.phoneNumber, msg);
-          }
-        });
-      admin
-        .database()
-        .ref("passengers/" + passengerId)
-        .once("value", function (snapshot) {
-          const passenger = snapshot.val();
-          const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
-          if (passenger.isPhoneVerified) {
-            sendSMS("+91" + passenger.phoneNumber, msg);
-          }
-        });
+
+      const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
+     
+      const driverData = (
+        await admin.database().ref("drivers/" + driverId).once("value")
+      ).val();
+      
+      if(driverData && driverData.isPhoneVerified) {
+        sendSMS("+91" + driverData.phoneNumber, msg);
+      }
+
+      const passengerData = (
+        await admin.database().ref("passengers/" + passengerId).once("value")
+      ).val();
+      
+      if(passengerData && passengerData.isPhoneVerified) {
+        sendSMS("+91" + passengerData.phoneNumber, msg);
+      }
+      
+      const businessData = (
+        await admin.database().ref("business-management").once("value")
+      ).val();
+      
+      const companyData = (
+        await admin.database().ref("company-details").once("value")
+      ).val(); 
+      
+      const vehicleType = (
+        await admin.database().ref("fleets/" + after.vehicleType).once("value")
+      ).val();
+      
+      let emailData = {
+        companyWeb : "https://wrapspeedtaxi.com",
+        title : "Invoice For Trip : #" + key,
+        tripDate  : moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
+        companyLogo  :  companyData.logo,
+        companyName  : companyData.name,
+        currency : businessData.currency,
+        finalFare  : after.fareDetails.finalFare,
+        tripId  : key,
+        routeMap  : companyData.logo,
+        riderName   : passengerData.name,
+        driverName    : driverData.name,
+        driverProfilePic : driverData.profilePic ? driverData.profilePic : companyData.logo,
+        fleetType  : vehicleType.name,
+        fleetDetail : driverData.brand + " - " + driverData.model,
+        fromTime  : moment(new Date(after.pickedUpAt)).format("hh:mm A"),
+        fromAddress  : after.origin.address,
+        endTime  : moment(new Date(after.droppedOffAt)).format("hh:mm A"),
+        toAddress   : after.destination.address,
+        baseFare  : after.fareDetails.baseFare,
+        taxFare   : after.fareDetails.tax,
+        paidBy  : after.paymentMethod,
+        paidByImage  : "images/cash.png"
+      }
+
+      ejs.renderFile(__dirname + "//invoice.ejs", emailData , async function (
+        err,
+        html
+      ) {
+        if (err) {
+          functions.logger.error(err)
+        } else {
+          transporter.sendMail({
+            from: "noreply@wrapspeedtaxi.com",
+            to: passengerData.email,
+            bcc : driverData.email,
+            subject: "Invoice For Trip : #" + key, 
+            html,
+          }, function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1)
+            } else {
+              functions.logger.info(info)
+            }
+          });
+        }
+      });
     } else if (after.status == TRIP_STATUS_CANCELED) {
       admin
         .database()
@@ -803,93 +876,93 @@ exports.tripUpdateTrigger = functions.database
     }
   });
 
-exports.sendOTP = functions.https.onRequest((req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Credentials", "true"); // vital
-  if (req.method === "OPTIONS") {
-    // Send response to OPTIONS requests
-    res.set("Access-Control-Allow-Methods", "GET, POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "3600");
-    res.status(204).send("");
-  } else {
-    if (req.body.mobile) {
-      client.verify
-        .services(twilioService)
-        .verifications.create({ to: "+91" + req.body.mobile, channel: "sms" })
-        .then((verification) => {
-          if (verification.status == "pending" && !verification.valid) {
-            res.status(200).json({
-              status: 1,
-              msg: "Otp Sent On Mobile Number +91" + req.body.mobile,
-            });
-          } else {
-            res.status(200).json({
-              status: -1,
-              msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
-            });
-          }
-        })
-        .catch((error) => {
-          res.status(200).json({
-            status: -1,
-            msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
-          });
-        });
-    } else {
-      res.status(200).json({
-        status: -1,
-        msg: "Mobile Number Not Found",
-      });
-    }
-  }
-});
+// exports.sendOTP = functions.https.onRequest((req, res) => {
+//   res.set("Access-Control-Allow-Origin", "*");
+//   res.set("Access-Control-Allow-Credentials", "true"); // vital
+//   if (req.method === "OPTIONS") {
+//     // Send response to OPTIONS requests
+//     res.set("Access-Control-Allow-Methods", "GET, POST");
+//     res.set("Access-Control-Allow-Headers", "Content-Type");
+//     res.set("Access-Control-Max-Age", "3600");
+//     res.status(204).send("");
+//   } else {
+//     if (req.body.mobile) {
+//       client.verify
+//         .services(twilioService)
+//         .verifications.create({ to: "+91" + req.body.mobile, channel: "sms" })
+//         .then((verification) => {
+//           if (verification.status == "pending" && !verification.valid) {
+//             res.status(200).json({
+//               status: 1,
+//               msg: "Otp Sent On Mobile Number +91" + req.body.mobile,
+//             });
+//           } else {
+//             res.status(200).json({
+//               status: -1,
+//               msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
+//             });
+//           }
+//         })
+//         .catch((error) => {
+//           res.status(200).json({
+//             status: -1,
+//             msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
+//           });
+//         });
+//     } else {
+//       res.status(200).json({
+//         status: -1,
+//         msg: "Mobile Number Not Found",
+//       });
+//     }
+//   }
+// });
 
-exports.verifyOTP = functions.https.onRequest((req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Credentials", "true"); // vital
-  if (req.method === "OPTIONS") {
-    // Send response to OPTIONS requests
-    res.set("Access-Control-Allow-Methods", "GET, POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "3600");
-    res.status(204).send("");
-  } else {
-    if (req.body.mobile && req.body.otp) {
-      client.verify
-        .services(twilioService)
-        .verificationChecks.create({
-          to: "+91" + req.body.mobile,
-          code: req.body.otp,
-        })
-        .then((verification) => {
-          if (verification.status == "approved" && verification.valid) {
-            res.status(200).json({
-              status: 1,
-              msg: "Otp Verified For Mobile Number +91" + req.body.mobile,
-            });
-          } else {
-            res.status(200).json({
-              status: -1,
-              msg: "Invalid OTP",
-            });
-          }
-        })
-        .catch((error) => {
-          functions.logger.error(error);
-          res.status(200).json({
-            status: -1,
-            msg: "Unable To Verify OTP For Mobile Number +91" + req.body.mobile,
-          });
-        });
-    } else {
-      res.status(200).json({
-        status: -1,
-        msg: "Either Mobile Number Or OTP Not Found",
-      });
-    }
-  }
-});
+// exports.verifyOTP = functions.https.onRequest((req, res) => {
+//   res.set("Access-Control-Allow-Origin", "*");
+//   res.set("Access-Control-Allow-Credentials", "true"); // vital
+//   if (req.method === "OPTIONS") {
+//     // Send response to OPTIONS requests
+//     res.set("Access-Control-Allow-Methods", "GET, POST");
+//     res.set("Access-Control-Allow-Headers", "Content-Type");
+//     res.set("Access-Control-Max-Age", "3600");
+//     res.status(204).send("");
+//   } else {
+//     if (req.body.mobile && req.body.otp) {
+//       client.verify
+//         .services(twilioService)
+//         .verificationChecks.create({
+//           to: "+91" + req.body.mobile,
+//           code: req.body.otp,
+//         })
+//         .then((verification) => {
+//           if (verification.status == "approved" && verification.valid) {
+//             res.status(200).json({
+//               status: 1,
+//               msg: "Otp Verified For Mobile Number +91" + req.body.mobile,
+//             });
+//           } else {
+//             res.status(200).json({
+//               status: -1,
+//               msg: "Invalid OTP",
+//             });
+//           }
+//         })
+//         .catch((error) => {
+//           functions.logger.error(error);
+//           res.status(200).json({
+//             status: -1,
+//             msg: "Unable To Verify OTP For Mobile Number +91" + req.body.mobile,
+//           });
+//         });
+//     } else {
+//       res.status(200).json({
+//         status: -1,
+//         msg: "Either Mobile Number Or OTP Not Found",
+//       });
+//     }
+//   }
+// });
 
 exports.sendSOSMessage = functions.https.onRequest((req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
@@ -958,12 +1031,12 @@ exports.sendSOSMessage = functions.https.onRequest((req, res) => {
             sendSMS("+91" + businessData.sosContact, msg3);
           }
         });
-      res.status(200).json({
+      return res.status(200).json({
         status: 1,
         msg: "SOS message send successfully.",
       });
     } else {
-      res.status(200).json({
+      return res.status(200).json({
         status: -1,
         msg: "Either Id Or Type Not Found",
       });
@@ -987,16 +1060,13 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
       const id = req.body.id;
 
       if (id == code) {
-        res.status(200).json({
+        return res.status(200).json({
           status: -1,
           msg: "You cannot use your own referral code.",
         });
       } else {
         const businessData = (
-          await admin
-            .database()
-            .ref("business-management")
-            .once("value")
+          await admin.database().ref("business-management").once("value")
         ).val();
         const driverReferrer = (
           await admin
@@ -1094,7 +1164,7 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               .ref("wallet-transactions")
               .push(refereeBalData);
           }
-          res.status(200).json({
+          return res.status(200).json({
             status: 1,
             msg: "Referral Code Successfully Applied.",
           });
@@ -1165,25 +1235,47 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               .ref("wallet-transactions")
               .push(refereeBalData);
           }
-          res.status(200).json({
+          return res.status(200).json({
             status: 1,
             msg: "Referral Code Successfully Applied.",
           });
         } else {
-          res.status(200).json({
+          return res.status(200).json({
             status: -1,
             msg: "Invalid Referral Code",
           });
         }
       }
     } else {
-      res.status(200).json({
+      return res.status(200).json({
         status: -1,
         msg: "Either Code, Id Or Type Not Found",
       });
     }
   }
 });
+
+// exports.generateInvoice = functions.https.onRequest(async (req, res) => {
+//   res.set("Access-Control-Allow-Origin", "*");
+//   res.set("Access-Control-Allow-Credentials", "true"); // vital
+//   if (req.method === "OPTIONS") {
+//     // Send response to OPTIONS requests
+//     res.set("Access-Control-Allow-Methods", "GET, POST");
+//     res.set("Access-Control-Allow-Headers", "Content-Type");
+//     res.set("Access-Control-Max-Age", "3600");
+//     res.status(204).send("");
+//   } else {
+//     const businessData = (
+//       await admin.database().ref("business-management").once("value")
+//     ).val();
+//     const companyData = (
+//       await admin.database().ref("company-details").once("value")
+//     ).val();
+
+
+    
+//   }
+// });
 
 exports.scheduledFunction = functions.pubsub
   .schedule("every 15 minutes")
