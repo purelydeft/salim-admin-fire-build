@@ -4,6 +4,10 @@ const stripe = require("stripe")("sk_test_oyluHsmvwh807tGsVw8ristF");
 const moment = require("moment");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
+// const cors = require("cors")({
+//   origin: true
+// });
+
 const transporter = nodemailer.createTransport({
   name: "Wrap Speed Taxi",
   host: "mail.wrapspeedtaxi.com",
@@ -229,7 +233,9 @@ function sendSMS(to, mesage) {
       from: twilioNumber,
       to: to,
     })
-    .then((message) => functions.logger.info(message.sid));
+    .then((message) => {
+      functions.logger.info(message.sid)
+    }).catch(err => functions.logger.error(err));
 }
 
 exports.deleteRider = functions.database
@@ -430,36 +436,6 @@ exports.updateDriver = functions.database
         });
     }
   });
-
-// exports.updateDriver = functions.database
-//   .ref("/drivers/{id}")
-//   .onUpdate(function (snapshot, context) {
-//     const key = context.params.id;
-//     const before = snapshot.before.val();
-//     const after = snapshot.after.val();
-//     let updateData;
-//     let updateCheck = false;
-//     if (after.email != before.email) {
-//       updateData.email = after.email;
-//       updateData.emailVerified = false;
-//       updateCheck = true;
-//     }
-//     if (after.phoneNumber != before.phoneNumber) {
-//       updateData.phoneNumber = after.phoneNumber;
-//       updateCheck = true;
-//     }
-//     if (updateCheck) {
-//       admin
-//         .auth()
-//         .updateUser(key, updateData)
-//         .then(() => {
-//           functions.logger.info("Updated: " + key);
-//         })
-//         .catch((err) => {
-//           functions.logger.info(err);
-//         });
-//     }
-//   });
 
 exports.createPassenger = functions.database
   .ref("/passengers/{id}")
@@ -1255,27 +1231,69 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// exports.generateInvoice = functions.https.onRequest(async (req, res) => {
-//   res.set("Access-Control-Allow-Origin", "*");
-//   res.set("Access-Control-Allow-Credentials", "true"); // vital
-//   if (req.method === "OPTIONS") {
-//     // Send response to OPTIONS requests
-//     res.set("Access-Control-Allow-Methods", "GET, POST");
-//     res.set("Access-Control-Allow-Headers", "Content-Type");
-//     res.set("Access-Control-Max-Age", "3600");
-//     res.status(204).send("");
-//   } else {
-//     const businessData = (
-//       await admin.database().ref("business-management").once("value")
-//     ).val();
-//     const companyData = (
-//       await admin.database().ref("company-details").once("value")
-//     ).val();
-
-
+exports.generateInvoice = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    // ejs.renderFile(__dirname + "//invoice1.ejs", {} , async function (
+    //     err,
+    //     html
+    //   ) {
+    //     if (err) {
+    //       functions.logger.error(err)
+    //       return res.status(200).json({
+    //         message : 'Error Occurred Rendering'
+    //       })
+    //     } else {
+          
+    //     }
+    //   });
+    const mailer = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true, // upgrade later with STARTTLS
+      auth: {
+        user: "devwrapspeedtaxi@gmail.com",
+        pass: "developer@123"
+      }
+    });
+    mailer.verify().then(data => {
+      functions.logger.info(data)
+      mailer.sendMail({
+        from: "devwrapspeedtaxi@gmail.com",
+        to: "kr.kalpit@gmail.com",
+        subject: "Invoice For Trip : #",
+        html : "<h1>Kalpit</h1>",
+      }, function (err1, info) {
+        if (err1) {
+          functions.logger.error(err1)
+          mailer.close();
+          return res.status(200).json({
+            message : 'Error Occurred Sending Mail'
+          })
+        } else {
+          functions.logger.info(info)
+          mailer.close();
+          return res.status(200).json({
+            message : 'Mail Sent'
+          })
+        }
+      });
+    }).catch(err =>  {
+      functions.logger.error(err)
+      return res.status(200).json({
+        message : 'Verify Failed'
+      })
+    })
     
-//   }
-// });
+  }
+});
 
 exports.scheduledFunction = functions.pubsub
   .schedule("every 15 minutes")
