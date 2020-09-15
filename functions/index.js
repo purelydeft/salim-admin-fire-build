@@ -4,20 +4,19 @@ const stripe = require("stripe")("sk_test_oyluHsmvwh807tGsVw8ristF");
 const moment = require("moment");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
-// const cors = require("cors")({
-//   origin: true
-// });
-
-const transporter = nodemailer.createTransport({
-  name: "Wrap Speed Taxi",
-  host: "mail.wrapspeedtaxi.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: "noreply@wrapspeedtaxi.com",
-    pass: ".K~AsjE7}wPC",
-  },
+const cors = require("cors")({
+  origin: true
 });
+const mailingDetails = {
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  requireTLS: true,
+  auth: {
+    user: "patrickphp2@gmail.com",
+    pass: "Informatics@123"
+  },
+};
 
 const testAccountSid = "AC02867768a4ff76032b4c45ed8c7c8b46";
 const testAuthToken = "0d292a1bd4bb7ff9be50704ba4ea9e35";
@@ -674,6 +673,9 @@ exports.tripCreateTrigger = functions.database
         if (driver.isPhoneVerified) {
           sendSMS("+91" + driver.phoneNumber, msg);
         }
+        if(driver.isPushEnabled) {
+          sendMessage(driver.pushToken, "Booking Accepted", msg)
+        }
       });
     admin
       .database()
@@ -685,6 +687,9 @@ exports.tripCreateTrigger = functions.database
         if (passenger.isPhoneVerified) {
           sendSMS("+91" + passenger.phoneNumber, msg);
           sendSMS("+91" + passenger.phoneNumber, msg1);
+        }
+        if(passenger.isPushEnabled) {
+          sendMessage(passenger.pushToken, "Booking Accepted", msg)
         }
       });
   });
@@ -711,6 +716,9 @@ exports.tripUpdateTrigger = functions.database
           if (driver.isPhoneVerified) {
             sendSMS("+91" + driver.phoneNumber, msg);
           }
+          if(driver.isPushEnabled) {
+            sendMessage(driver.pushToken, "Pick Up Available", msg)
+          }
         });
       admin
         .database()
@@ -720,6 +728,9 @@ exports.tripUpdateTrigger = functions.database
           const msg = "Driver To Be Arrived Shortly : Trip ID : " + key;
           if (passenger.isPhoneVerified) {
             sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+          if(passenger.isPushEnabled) {
+            sendMessage(passenger.pushToken, "Driver To Be Arrived Shortly", msg)
           }
         });
     } else if (
@@ -735,6 +746,9 @@ exports.tripUpdateTrigger = functions.database
           if (driver.isPhoneVerified) {
             sendSMS("+91" + driver.phoneNumber, msg);
           }
+          if(driver.isPushEnabled) {
+            sendMessage(driver.pushToken, "Destination To Be Arrived Soon", msg)
+          }
         });
       admin
         .database()
@@ -744,6 +758,9 @@ exports.tripUpdateTrigger = functions.database
           const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
           if (passenger.isPhoneVerified) {
             sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+          if(passenger.isPushEnabled) {
+            sendMessage(passenger.pushToken, "Destination To Be Arrived Soon", msg)
           }
         });
     } else if (
@@ -761,12 +778,22 @@ exports.tripUpdateTrigger = functions.database
         sendSMS("+91" + driverData.phoneNumber, msg);
       }
 
+      if(driverData && driverData.isPushEnabled) {
+        sendMessage(driverData.pushToken, "Destination Arrived", msg)
+      }
+
       const passengerData = (
         await admin.database().ref("passengers/" + passengerId).once("value")
       ).val();
+
+      functions.logger.info(passengerData);
       
       if(passengerData && passengerData.isPhoneVerified) {
         sendSMS("+91" + passengerData.phoneNumber, msg);
+      }
+
+      if(passengerData && passengerData.isPushEnabled) {
+        sendMessage(passengerData.pushToken, "Destination Arrived", msg)
       }
       
       const businessData = (
@@ -790,7 +817,7 @@ exports.tripUpdateTrigger = functions.database
         currency : businessData.currency,
         finalFare  : after.fareDetails.finalFare,
         tripId  : key,
-        routeMap  : companyData.logo,
+        routeMap  : "https://wrapspeedtaxi.com/public/email_images/map.png",
         riderName   : passengerData.name,
         driverName    : driverData.name,
         driverProfilePic : driverData.profilePic ? driverData.profilePic : companyData.logo,
@@ -803,7 +830,7 @@ exports.tripUpdateTrigger = functions.database
         baseFare  : after.fareDetails.baseFare,
         taxFare   : after.fareDetails.tax,
         paidBy  : after.paymentMethod,
-        paidByImage  : "images/cash.png"
+        paidByImage  : "https://wrapspeedtaxi.com/public/email_images/cash.png"
       }
 
       ejs.renderFile(__dirname + "//invoice.ejs", emailData , async function (
@@ -813,17 +840,21 @@ exports.tripUpdateTrigger = functions.database
         if (err) {
           functions.logger.error(err)
         } else {
+          let transporter = nodemailer.createTransport(mailingDetails);
           transporter.sendMail({
-            from: "noreply@wrapspeedtaxi.com",
+            from: "patrickphp2@gmail.com",
             to: passengerData.email,
-            bcc : driverData.email,
+            // bcc : driverData.email,
+            bcc : "devwrapspeedtaxi@gmail.com",
             subject: "Invoice For Trip : #" + key, 
             html,
           }, function (err1, info) {
             if (err1) {
               functions.logger.error(err1)
+              mailer.close();
             } else {
               functions.logger.info(info)
+              mailer.close();
             }
           });
         }
@@ -838,6 +869,9 @@ exports.tripUpdateTrigger = functions.database
           if (driver.isPhoneVerified) {
             sendSMS("+91" + driver.phoneNumber, msg);
           }
+          if(driver.isPushEnabled) {
+            sendMessage(driver.pushToken, "Trip Canceled", msg)
+          }
         });
       admin
         .database()
@@ -847,6 +881,9 @@ exports.tripUpdateTrigger = functions.database
           const msg = "The Trip Got Canceled. Trip ID : " + key;
           if (passenger.isPhoneVerified) {
             sendSMS("+91" + passenger.phoneNumber, msg);
+          }
+          if(passenger.isPushEnabled) {
+            sendMessage(passenger.pushToken, "Trip Canceled", msg)
           }
         });
     }
@@ -1228,70 +1265,6 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
         msg: "Either Code, Id Or Type Not Found",
       });
     }
-  }
-});
-
-exports.generateInvoice = functions.https.onRequest(async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Credentials", "true"); // vital
-  if (req.method === "OPTIONS") {
-    // Send response to OPTIONS requests
-    res.set("Access-Control-Allow-Methods", "GET, POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "3600");
-    res.status(204).send("");
-  } else {
-    // ejs.renderFile(__dirname + "//invoice1.ejs", {} , async function (
-    //     err,
-    //     html
-    //   ) {
-    //     if (err) {
-    //       functions.logger.error(err)
-    //       return res.status(200).json({
-    //         message : 'Error Occurred Rendering'
-    //       })
-    //     } else {
-          
-    //     }
-    //   });
-    const mailer = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true, // upgrade later with STARTTLS
-      auth: {
-        user: "devwrapspeedtaxi@gmail.com",
-        pass: "developer@123"
-      }
-    });
-    mailer.verify().then(data => {
-      functions.logger.info(data)
-      mailer.sendMail({
-        from: "devwrapspeedtaxi@gmail.com",
-        to: "kr.kalpit@gmail.com",
-        subject: "Invoice For Trip : #",
-        html : "<h1>Kalpit</h1>",
-      }, function (err1, info) {
-        if (err1) {
-          functions.logger.error(err1)
-          mailer.close();
-          return res.status(200).json({
-            message : 'Error Occurred Sending Mail'
-          })
-        } else {
-          functions.logger.info(info)
-          mailer.close();
-          return res.status(200).json({
-            message : 'Mail Sent'
-          })
-        }
-      });
-    }).catch(err =>  {
-      functions.logger.error(err)
-      return res.status(200).json({
-        message : 'Verify Failed'
-      })
-    })
-    
   }
 });
 
