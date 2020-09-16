@@ -481,32 +481,32 @@ exports.createPassenger = functions.database
     }
     await admin
       .database()
-      .ref("passenger_wallets/" + key)
+      .ref("passenger-wallets/" + key)
       .set({
         balance : 0,
         isKYC : false
       });
     await admin
       .database()
-      .ref("passenger_push_notifications/" + key)
+      .ref("passenger-push-notifications/" + key)
       .set({
         isPushEnabled : true
       });
     await admin
       .database()
-      .ref("passenger_corporates/" + key)
+      .ref("passenger-corporates/" + key)
       .set({
         isCorporate : false
       });
     await admin
       .database()
-      .ref("passenger_insurances/" + key)
+      .ref("passenger-insurances/" + key)
       .set({
         isRideSecured : true
       });
     await admin
       .database()
-      .ref("passenger_admin_donations/" + key)
+      .ref("passenger-admin-donations/" + key)
       .set({
         isDonateAdmin : false
       });
@@ -1126,11 +1126,11 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
         if(driverReferrer || passengerReferrer) {
           const referredType = passengerReferrer ? 'passenger' : 'driver';
           const referralTable = passengerReferrer ? 'passengers' : 'drivers';
-          const referrer_wallet_table = passengerReferrer ? 'passenger_wallets' : 'driver_wallets';
+          const referrer_wallet_table = passengerReferrer ? 'passenger-wallets' : 'driver-wallets';
 
           const refereeTable = type == "passenger" ? 'passengers' : 'drivers';
-          const referee_wallet_table = type == "passenger" ? 'passenger_wallets' : 'driver_wallets';
-          const referee_referral_table = type == "passenger" ? 'passenger_referrals' : 'driver_referrals';
+          const referee_wallet_table = type == "passenger" ? 'passenger-wallets' : 'driver-wallets';
+          const referee_referral_table = type == "passenger" ? 'passenger-referrals' : 'driver-referrals';
         
           const referee = (
             await admin
@@ -1197,7 +1197,7 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
           const referrerBal = referrerBalance && referrerBalance.balance ? referrerBalance.balance : 0;
           await admin
             .database()
-            .ref(referrer_wallet_table + "driver_wallets/" + code)
+            .ref(referrer_wallet_table + "/" + code)
             .update({
               balance: referrerBal + businessData.referral.referrerAmount,
             });
