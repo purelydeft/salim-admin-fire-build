@@ -479,6 +479,37 @@ exports.createPassenger = functions.database
           });
       }
     }
+    await admin
+      .database()
+      .ref("passenger_wallets/" + key)
+      .set({
+        balance : 0,
+        isKYC : false
+      });
+    await admin
+      .database()
+      .ref("passenger_push_notifications/" + key)
+      .set({
+        isPushEnabled : true
+      });
+    await admin
+      .database()
+      .ref("passenger_corporates/" + key)
+      .set({
+        isCorporate : false
+      });
+    await admin
+      .database()
+      .ref("passenger_insurances/" + key)
+      .set({
+        isRideSecured : true
+      });
+    await admin
+      .database()
+      .ref("passenger_admin_donations/" + key)
+      .set({
+        isDonateAdmin : false
+      });
   });
 
 exports.updatePassenger = functions.database
@@ -1078,15 +1109,13 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
           msg: "You cannot use your own referral code.",
         });
       } else {
-        const businessData = (
-          await admin.database().ref("business-management").once("value")
-        ).val();
         const driverReferrer = (
           await admin
             .database()
             .ref("drivers/" + code)
             .once("value")
         ).val();
+
         const passengerReferrer = (
           await admin
             .database()
@@ -1094,56 +1123,48 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
             .once("value")
         ).val();
 
-        let referee;
+        if(driverReferrer || passengerReferrer) {
+          const referredType = passengerReferrer ? 'passenger' : 'driver';
+          const referralTable = passengerReferrer ? 'passengers' : 'drivers';
+          const referrer_wallet_table = passengerReferrer ? 'passenger_wallets' : 'driver_wallets';
 
-        if (type == "passenger") {
-          referee = (
+          const refereeTable = type == "passenger" ? 'passengers' : 'drivers';
+          const referee_wallet_table = type == "passenger" ? 'passenger_wallets' : 'driver_wallets';
+          const referee_referral_table = type == "passenger" ? 'passenger_referrals' : 'driver_referrals';
+        
+          const referee = (
             await admin
               .database()
-              .ref("passengers/" + id)
+              .ref( refereeTable + "/" + code)
               .once("value")
           ).val();
-        } else {
-          referee = (
+
+
+          const refereeBalance = (
             await admin
               .database()
-              .ref("drivers/" + id)
+              .ref(referee_wallet_table + "/" + id)
               .once("value")
           ).val();
-        }
 
-        if (driverReferrer) {
-          let referrerBal = driverReferrer.balance ? driverReferrer.balance : 0;
+          const refereeBal = refereeBalance && refereeBalance.balance ? refereeBalance.balance : 0;
           await admin
             .database()
-            .ref("drivers/" + code)
+            .ref(referee_wallet_table + "/" + id)
             .update({
-              balance: referrerBal + businessData.referral.referrerAmount,
+              balance: refereeBal + businessData.referral.refereeAmount,
             });
-          const referrerBalData = {
-            driver_email: driverReferrer.email,
-            driver_id: code,
-            amount: businessData.referral.referrerAmount,
-            created: Date.now(),
-            description: "Referral Bonus",
-            type: 1,
-          };
           await admin
             .database()
-            .ref("wallet-transactions")
-            .push(referrerBalData);
+            .ref(referee_referral_table + "/" + id)
+            .update({
+              referredBy : code,
+              referredType : referredType
+            });
 
-          let refereeBal = referee.balance ? referee.balance : 0;
+          let refereeBalData ;
           if (type == "passenger") {
-            await admin
-              .database()
-              .ref("passengers/" + id)
-              .update({
-                balance: refereeBal + businessData.referral.refereeAmount,
-                referredBy: code,
-                referredType: "driver",
-              });
-            const refereeBalData = {
+            refereeBalData = {
               passenger_email: referee.email,
               passenger_id: id,
               amount: businessData.referral.refereeAmount,
@@ -1151,20 +1172,9 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               description: "Referral Bonus",
               type: 1,
             };
-            await admin
-              .database()
-              .ref("wallet-transactions")
-              .push(refereeBalData);
+           
           } else {
-            await admin
-              .database()
-              .ref("passengers/" + id)
-              .update({
-                balance: refereeBal + businessData.referral.refereeAmount,
-                referredBy: code,
-                referredType: "driver",
-              });
-            const refereeBalData = {
+            refereeBalData = {
               driver_email: referee.email,
               driver_id: id,
               amount: businessData.referral.refereeAmount,
@@ -1172,82 +1182,50 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               description: "Referral Bonus",
               type: 1,
             };
-            await admin
-              .database()
-              .ref("wallet-transactions")
-              .push(refereeBalData);
           }
-          return res.status(200).json({
-            status: 1,
-            msg: "Referral Code Successfully Applied.",
-          });
-        } else if (passengerReferrer) {
-          let referrerBal = passengerReferrer.balance
-            ? passengerReferrer.balance
-            : 0;
-          await admin
-            .database()
-            .ref("passengers/" + code)
-            .update({
-              balance: referrerBal + businessData.referral.referrerAmount,
-            });
-          const referrerBalData = {
-            passenger_email: passengerReferrer.email,
-            passenger_id: code,
-            amount: businessData.referral.referrerAmount,
-            created: Date.now(),
-            description: "Referral Bonus",
-            type: 1,
-          };
           await admin
             .database()
             .ref("wallet-transactions")
-            .push(referrerBalData);
+            .push(refereeBalData);
 
-          let refereeBal = referee.balance ? referee.balance : 0;
-          if (type == "passenger") {
+          const referrerBalance = (
             await admin
               .database()
-              .ref("passengers/" + id)
-              .update({
-                balance: refereeBal + businessData.referral.refereeAmount,
-                referredBy: code,
-                referredType: "passenger",
-              });
-            const refereeBalData = {
-              passenger_email: referee.email,
-              passenger_id: id,
-              amount: businessData.referral.refereeAmount,
+              .ref(referrer_wallet_table + "/" + code)
+              .once("value")
+          ).val();
+          const referrerBal = referrerBalance && referrerBalance.balance ? referrerBalance.balance : 0;
+          await admin
+            .database()
+            .ref(referrer_wallet_table + "driver_wallets/" + code)
+            .update({
+              balance: referrerBal + businessData.referral.referrerAmount,
+            });
+          
+          let referrerBalData;
+          if (driverReferrer) {
+            referrerBalData = {
+              driver_email: driverReferrer.email,
+              driver_id: code,
+              amount: businessData.referral.referrerAmount,
               created: Date.now(),
               description: "Referral Bonus",
               type: 1,
             };
-            await admin
-              .database()
-              .ref("wallet-transactions")
-              .push(refereeBalData);
           } else {
-            await admin
-              .database()
-              .ref("passengers/" + id)
-              .update({
-                balance: refereeBal + businessData.referral.refereeAmount,
-                referredBy: code,
-                referredType: "driver",
-              });
-            const refereeBalData = {
-              driver_email: referee.email,
-              driver_id: id,
-              amount: businessData.referral.refereeAmount,
+            referrerBalData = {
+              passenger_email: passengerReferrer.email,
+              passenger_id: code,
+              amount: businessData.referral.referrerAmount,
               created: Date.now(),
               description: "Referral Bonus",
               type: 1,
             };
-            await admin
+          }
+          await admin
               .database()
               .ref("wallet-transactions")
-              .push(refereeBalData);
-          }
+              .push(referrerBalData);
           return res.status(200).json({
             status: 1,
             msg: "Referral Code Successfully Applied.",
