@@ -5,16 +5,16 @@ const moment = require("moment");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
 const cors = require("cors")({
-  origin: true
+  origin: true,
 });
 const mailingDetails = {
-  host: 'smtp.gmail.com',
+  host: "smtp.gmail.com",
   port: 587,
   secure: false,
   requireTLS: true,
   auth: {
     user: "patrickphp2@gmail.com",
-    pass: "Informatics@123"
+    pass: "Informatics@123",
   },
 };
 
@@ -43,7 +43,7 @@ exports.sendPush = functions.database
     if (original.type == "riders") {
       admin
         .database()
-        .ref("passengers")
+        .ref("passenger-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -67,7 +67,7 @@ exports.sendPush = functions.database
     } else if (original.type == "both") {
       admin
         .database()
-        .ref("passengers")
+        .ref("passenger-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -98,7 +98,7 @@ exports.sendPushPromo = functions.database
     if (original.type == "riders") {
       admin
         .database()
-        .ref("passengers")
+        .ref("passenger-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -122,7 +122,7 @@ exports.sendPushPromo = functions.database
     } else if (original.type == "both") {
       admin
         .database()
-        .ref("passengers")
+        .ref("passenger-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -153,7 +153,7 @@ exports.sendPushNews = functions.database
     if (original.type == "riders") {
       admin
         .database()
-        .ref("passengers")
+        .ref("passenger-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -177,7 +177,7 @@ exports.sendPushNews = functions.database
     } else if (original.type == "both") {
       admin
         .database()
-        .ref("passengers")
+        .ref("passenger-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -233,8 +233,9 @@ function sendSMS(to, mesage) {
       to: to,
     })
     .then((message) => {
-      functions.logger.info(message.sid)
-    }).catch(err => functions.logger.error(err));
+      functions.logger.info(message.sid);
+    })
+    .catch((err) => functions.logger.error(err));
 }
 
 exports.deleteRider = functions.database
@@ -483,32 +484,32 @@ exports.createPassenger = functions.database
       .database()
       .ref("passenger-wallets/" + key)
       .set({
-        balance : 0,
-        isKYC : false
+        balance: 0,
+        isKYC: false,
       });
     await admin
       .database()
       .ref("passenger-push-notifications/" + key)
       .set({
-        isPushEnabled : true
+        isPushEnabled: true,
       });
     await admin
       .database()
       .ref("passenger-corporates/" + key)
       .set({
-        isCorporate : false
+        isCorporate: false,
       });
     await admin
       .database()
       .ref("passenger-insurances/" + key)
       .set({
-        isRideSecured : true
+        isRideSecured: true,
       });
     await admin
       .database()
       .ref("passenger-admin-donations/" + key)
       .set({
-        isDonateAdmin : false
+        isDonateAdmin: false,
       });
   });
 
@@ -702,10 +703,14 @@ exports.tripCreateTrigger = functions.database
         const driver = snapshot.val();
         const msg = "Booking Accepted : Trip ID : " + key;
         if (driver.isPhoneVerified) {
-          sendSMS("+91" + driver.phoneNumber, msg);
+          sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
         }
-        if(driver.isPushEnabled) {
-          sendMessage(driver.pushToken, "Booking Accepted", msg)
+        if (driver.isPushEnabled) {
+          sendMessage(
+            driver.pushToken,
+            "Booking Accepted",
+            "Driver Notification : " + msg
+          );
         }
       });
     admin
@@ -716,11 +721,15 @@ exports.tripCreateTrigger = functions.database
         const msg = "Booking Accepted By Driver : Trip ID : " + key;
         const msg1 = "OTP For Ride : " + key + " Is " + original.otp;
         if (passenger.isPhoneVerified) {
-          sendSMS("+91" + passenger.phoneNumber, msg);
+          sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
           sendSMS("+91" + passenger.phoneNumber, msg1);
         }
-        if(passenger.isPushEnabled) {
-          sendMessage(passenger.pushToken, "Booking Accepted", msg)
+        if (passenger.isPushEnabled) {
+          sendMessage(
+            passenger.pushToken,
+            "Booking Accepted",
+            "Passenger Notification : " + msg
+          );
         }
       });
   });
@@ -734,9 +743,6 @@ exports.tripUpdateTrigger = functions.database
     const driverId = after.driverId;
     const passengerId = after.passengerId;
 
-    functions.logger.info(before);
-    functions.logger.info(after);
-
     if (after.status == TRIP_STATUS_WAITING) {
       admin
         .database()
@@ -745,10 +751,14 @@ exports.tripUpdateTrigger = functions.database
           const driver = snapshot.val();
           const msg = "Pick Up Available : Trip ID : " + key;
           if (driver.isPhoneVerified) {
-            sendSMS("+91" + driver.phoneNumber, msg);
+            sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
           }
-          if(driver.isPushEnabled) {
-            sendMessage(driver.pushToken, "Pick Up Available", msg)
+          if (driver.isPushEnabled) {
+            sendMessage(
+              driver.pushToken,
+              "Pick Up Available",
+              "Driver Notification : " + msg
+            );
           }
         });
       admin
@@ -758,10 +768,14 @@ exports.tripUpdateTrigger = functions.database
           const passenger = snapshot.val();
           const msg = "Driver To Be Arrived Shortly : Trip ID : " + key;
           if (passenger.isPhoneVerified) {
-            sendSMS("+91" + passenger.phoneNumber, msg);
+            sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
           }
-          if(passenger.isPushEnabled) {
-            sendMessage(passenger.pushToken, "Driver To Be Arrived Shortly", msg)
+          if (passenger.isPushEnabled) {
+            sendMessage(
+              passenger.pushToken,
+              "Driver To Be Arrived Shortly",
+              "Passenger Notification : " + msg
+            );
           }
         });
     } else if (
@@ -775,10 +789,14 @@ exports.tripUpdateTrigger = functions.database
           const driver = snapshot.val();
           const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
           if (driver.isPhoneVerified) {
-            sendSMS("+91" + driver.phoneNumber, msg);
+            sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
           }
-          if(driver.isPushEnabled) {
-            sendMessage(driver.pushToken, "Destination To Be Arrived Soon", msg)
+          if (driver.isPushEnabled) {
+            sendMessage(
+              driver.pushToken,
+              "Destination To Be Arrived Soon",
+              "Driver Notification : " + msg
+            );
           }
         });
       admin
@@ -788,106 +806,128 @@ exports.tripUpdateTrigger = functions.database
           const passenger = snapshot.val();
           const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
           if (passenger.isPhoneVerified) {
-            sendSMS("+91" + passenger.phoneNumber, msg);
+            sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
           }
-          if(passenger.isPushEnabled) {
-            sendMessage(passenger.pushToken, "Destination To Be Arrived Soon", msg)
+          if (passenger.isPushEnabled) {
+            sendMessage(
+              passenger.pushToken,
+              "Destination To Be Arrived Soon",
+              "Passenger Notification : " + msg
+            );
           }
         });
     } else if (
       after.status == TRIP_STATUS_FINISHED &&
       before.status == TRIP_STATUS_GOING
     ) {
-
       const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
-     
+
       const driverData = (
-        await admin.database().ref("drivers/" + driverId).once("value")
+        await admin
+          .database()
+          .ref("drivers/" + driverId)
+          .once("value")
       ).val();
-      
-      if(driverData && driverData.isPhoneVerified) {
-        sendSMS("+91" + driverData.phoneNumber, msg);
+
+      if (driverData && driverData.isPhoneVerified) {
+        sendSMS("+91" + driverData.phoneNumber, "Driver Sms : " + msg);
       }
 
-      if(driverData && driverData.isPushEnabled) {
-        sendMessage(driverData.pushToken, "Destination Arrived", msg)
+      if (driverData && driverData.isPushEnabled) {
+        sendMessage(
+          driverData.pushToken,
+          "Destination Arrived",
+          "Driver Notification : " + msg
+        );
       }
 
       const passengerData = (
-        await admin.database().ref("passengers/" + passengerId).once("value")
+        await admin
+          .database()
+          .ref("passengers/" + passengerId)
+          .once("value")
       ).val();
 
-      functions.logger.info(passengerData);
-      
-      if(passengerData && passengerData.isPhoneVerified) {
-        sendSMS("+91" + passengerData.phoneNumber, msg);
+      if (passengerData && passengerData.isPhoneVerified) {
+        sendSMS("+91" + passengerData.phoneNumber, "Passenger Sms : " + msg);
       }
 
-      if(passengerData && passengerData.isPushEnabled) {
-        sendMessage(passengerData.pushToken, "Destination Arrived", msg)
+      if (passengerData && passengerData.isPushEnabled) {
+        sendMessage(
+          passengerData.pushToken,
+          "Destination Arrived",
+          "Passenger Notification : " + msg
+        );
       }
-      
+
       const businessData = (
         await admin.database().ref("business-management").once("value")
       ).val();
-      
+
       const companyData = (
         await admin.database().ref("company-details").once("value")
-      ).val(); 
-      
-      const vehicleType = (
-        await admin.database().ref("fleets/" + after.vehicleType).once("value")
       ).val();
-      
-      let emailData = {
-        companyWeb : "https://wrapspeedtaxi.com",
-        title : "Invoice For Trip : #" + key,
-        tripDate  : moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
-        companyLogo  :  companyData.logo,
-        companyName  : companyData.name,
-        currency : businessData.currency,
-        finalFare  : after.fareDetails.finalFare,
-        tripId  : key,
-        routeMap  : "https://wrapspeedtaxi.com/public/email_images/map.png",
-        riderName   : passengerData.name,
-        driverName    : driverData.name,
-        driverProfilePic : driverData.profilePic ? driverData.profilePic : companyData.logo,
-        fleetType  : vehicleType.name,
-        fleetDetail : driverData.brand + " - " + driverData.model,
-        fromTime  : moment(new Date(after.pickedUpAt)).format("hh:mm A"),
-        fromAddress  : after.origin.address,
-        endTime  : moment(new Date(after.droppedOffAt)).format("hh:mm A"),
-        toAddress   : after.destination.address,
-        baseFare  : after.fareDetails.baseFare,
-        taxFare   : after.fareDetails.tax,
-        paidBy  : after.paymentMethod,
-        paidByImage  : "https://wrapspeedtaxi.com/public/email_images/cash.png"
-      }
 
-      ejs.renderFile(__dirname + "//invoice.ejs", emailData , async function (
+      const vehicleType = (
+        await admin
+          .database()
+          .ref("fleets/" + after.vehicleType)
+          .once("value")
+      ).val();
+
+      let emailData = {
+        companyWeb: "https://wrapspeedtaxi.com",
+        title: "Invoice For Trip : #" + key,
+        tripDate: moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
+        companyLogo: companyData.logo,
+        companyName: companyData.name,
+        currency: businessData.currency,
+        finalFare: after.fareDetails.finalFare,
+        tripId: key,
+        routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
+        riderName: passengerData.name,
+        driverName: driverData.name,
+        driverProfilePic: driverData.profilePic
+          ? driverData.profilePic
+          : companyData.logo,
+        fleetType: vehicleType.name,
+        fleetDetail: driverData.brand + " - " + driverData.model,
+        fromTime: moment(new Date(after.pickedUpAt)).format("hh:mm A"),
+        fromAddress: after.origin.address,
+        endTime: moment(new Date(after.droppedOffAt)).format("hh:mm A"),
+        toAddress: after.destination.address,
+        baseFare: after.fareDetails.baseFare,
+        taxFare: after.fareDetails.tax,
+        paidBy: after.paymentMethod,
+        paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+      };
+
+      ejs.renderFile(__dirname + "//invoice.ejs", emailData, async function (
         err,
         html
       ) {
         if (err) {
-          functions.logger.error(err)
+          functions.logger.error(err);
         } else {
           let transporter = nodemailer.createTransport(mailingDetails);
-          transporter.sendMail({
-            from: "patrickphp2@gmail.com",
-            to: passengerData.email,
-            // bcc : driverData.email,
-            bcc : "devwrapspeedtaxi@gmail.com",
-            subject: "Invoice For Trip : #" + key, 
-            html,
-          }, function (err1, info) {
-            if (err1) {
-              functions.logger.error(err1)
-              mailer.close();
-            } else {
-              functions.logger.info(info)
-              mailer.close();
+          transporter.sendMail(
+            {
+              from: "patrickphp2@gmail.com",
+              to: passengerData.email,
+              bcc: driverData.email,
+              subject: "Invoice For Trip : #" + key,
+              html,
+            },
+            function (err1, info) {
+              if (err1) {
+                functions.logger.error(err1);
+                mailer.close();
+              } else {
+                functions.logger.info(info);
+                mailer.close();
+              }
             }
-          });
+          );
         }
       });
     } else if (after.status == TRIP_STATUS_CANCELED) {
@@ -898,10 +938,14 @@ exports.tripUpdateTrigger = functions.database
           const driver = snapshot.val();
           const msg = "The Trip Got Canceled. Trip ID : " + key;
           if (driver.isPhoneVerified) {
-            sendSMS("+91" + driver.phoneNumber, msg);
+            sendSMS("+91" + driver.phoneNumber, "Driver SMS" + msg);
           }
-          if(driver.isPushEnabled) {
-            sendMessage(driver.pushToken, "Trip Canceled", msg)
+          if (driver.isPushEnabled) {
+            sendMessage(
+              driver.pushToken,
+              "Trip Canceled",
+              "Driver Notification" + msg
+            );
           }
         });
       admin
@@ -911,102 +955,18 @@ exports.tripUpdateTrigger = functions.database
           const passenger = snapshot.val();
           const msg = "The Trip Got Canceled. Trip ID : " + key;
           if (passenger.isPhoneVerified) {
-            sendSMS("+91" + passenger.phoneNumber, msg);
+            sendSMS("+91" + passenger.phoneNumber, "Passenger SMS" + msg);
           }
-          if(passenger.isPushEnabled) {
-            sendMessage(passenger.pushToken, "Trip Canceled", msg)
+          if (passenger.isPushEnabled) {
+            sendMessage(
+              passenger.pushToken,
+              "Trip Canceled",
+              "Passenger Notification" + msg
+            );
           }
         });
     }
   });
-
-// exports.sendOTP = functions.https.onRequest((req, res) => {
-//   res.set("Access-Control-Allow-Origin", "*");
-//   res.set("Access-Control-Allow-Credentials", "true"); // vital
-//   if (req.method === "OPTIONS") {
-//     // Send response to OPTIONS requests
-//     res.set("Access-Control-Allow-Methods", "GET, POST");
-//     res.set("Access-Control-Allow-Headers", "Content-Type");
-//     res.set("Access-Control-Max-Age", "3600");
-//     res.status(204).send("");
-//   } else {
-//     if (req.body.mobile) {
-//       client.verify
-//         .services(twilioService)
-//         .verifications.create({ to: "+91" + req.body.mobile, channel: "sms" })
-//         .then((verification) => {
-//           if (verification.status == "pending" && !verification.valid) {
-//             res.status(200).json({
-//               status: 1,
-//               msg: "Otp Sent On Mobile Number +91" + req.body.mobile,
-//             });
-//           } else {
-//             res.status(200).json({
-//               status: -1,
-//               msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
-//             });
-//           }
-//         })
-//         .catch((error) => {
-//           res.status(200).json({
-//             status: -1,
-//             msg: "Unable To Send OTP On Mobile Number +91" + req.body.mobile,
-//           });
-//         });
-//     } else {
-//       res.status(200).json({
-//         status: -1,
-//         msg: "Mobile Number Not Found",
-//       });
-//     }
-//   }
-// });
-
-// exports.verifyOTP = functions.https.onRequest((req, res) => {
-//   res.set("Access-Control-Allow-Origin", "*");
-//   res.set("Access-Control-Allow-Credentials", "true"); // vital
-//   if (req.method === "OPTIONS") {
-//     // Send response to OPTIONS requests
-//     res.set("Access-Control-Allow-Methods", "GET, POST");
-//     res.set("Access-Control-Allow-Headers", "Content-Type");
-//     res.set("Access-Control-Max-Age", "3600");
-//     res.status(204).send("");
-//   } else {
-//     if (req.body.mobile && req.body.otp) {
-//       client.verify
-//         .services(twilioService)
-//         .verificationChecks.create({
-//           to: "+91" + req.body.mobile,
-//           code: req.body.otp,
-//         })
-//         .then((verification) => {
-//           if (verification.status == "approved" && verification.valid) {
-//             res.status(200).json({
-//               status: 1,
-//               msg: "Otp Verified For Mobile Number +91" + req.body.mobile,
-//             });
-//           } else {
-//             res.status(200).json({
-//               status: -1,
-//               msg: "Invalid OTP",
-//             });
-//           }
-//         })
-//         .catch((error) => {
-//           functions.logger.error(error);
-//           res.status(200).json({
-//             status: -1,
-//             msg: "Unable To Verify OTP For Mobile Number +91" + req.body.mobile,
-//           });
-//         });
-//     } else {
-//       res.status(200).json({
-//         status: -1,
-//         msg: "Either Mobile Number Or OTP Not Found",
-//       });
-//     }
-//   }
-// });
 
 exports.sendSOSMessage = functions.https.onRequest((req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
@@ -1123,22 +1083,25 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
             .once("value")
         ).val();
 
-        if(driverReferrer || passengerReferrer) {
-          const referredType = passengerReferrer ? 'passenger' : 'driver';
-          const referralTable = passengerReferrer ? 'passengers' : 'drivers';
-          const referrer_wallet_table = passengerReferrer ? 'passenger-wallets' : 'driver-wallets';
+        if (driverReferrer || passengerReferrer) {
+          const referredType = passengerReferrer ? "passenger" : "driver";
+          const referralTable = passengerReferrer ? "passengers" : "drivers";
+          const referrer_wallet_table = passengerReferrer
+            ? "passenger-wallets"
+            : "driver-wallets";
 
-          const refereeTable = type == "passenger" ? 'passengers' : 'drivers';
-          const referee_wallet_table = type == "passenger" ? 'passenger-wallets' : 'driver-wallets';
-          const referee_referral_table = type == "passenger" ? 'passenger-referrals' : 'driver-referrals';
-        
+          const refereeTable = type == "passenger" ? "passengers" : "drivers";
+          const referee_wallet_table =
+            type == "passenger" ? "passenger-wallets" : "driver-wallets";
+          const referee_referral_table =
+            type == "passenger" ? "passenger-referrals" : "driver-referrals";
+
           const referee = (
             await admin
               .database()
-              .ref( refereeTable + "/" + code)
+              .ref(refereeTable + "/" + code)
               .once("value")
           ).val();
-
 
           const refereeBalance = (
             await admin
@@ -1147,7 +1110,10 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               .once("value")
           ).val();
 
-          const refereeBal = refereeBalance && refereeBalance.balance ? refereeBalance.balance : 0;
+          const refereeBal =
+            refereeBalance && refereeBalance.balance
+              ? refereeBalance.balance
+              : 0;
           await admin
             .database()
             .ref(referee_wallet_table + "/" + id)
@@ -1158,11 +1124,11 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
             .database()
             .ref(referee_referral_table + "/" + id)
             .update({
-              referredBy : code,
-              referredType : referredType
+              referredBy: code,
+              referredType: referredType,
             });
 
-          let refereeBalData ;
+          let refereeBalData;
           if (type == "passenger") {
             refereeBalData = {
               passenger_email: referee.email,
@@ -1172,7 +1138,6 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               description: "Referral Bonus",
               type: 1,
             };
-           
           } else {
             refereeBalData = {
               driver_email: referee.email,
@@ -1194,14 +1159,17 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
               .ref(referrer_wallet_table + "/" + code)
               .once("value")
           ).val();
-          const referrerBal = referrerBalance && referrerBalance.balance ? referrerBalance.balance : 0;
+          const referrerBal =
+            referrerBalance && referrerBalance.balance
+              ? referrerBalance.balance
+              : 0;
           await admin
             .database()
             .ref(referrer_wallet_table + "/" + code)
             .update({
               balance: referrerBal + businessData.referral.referrerAmount,
             });
-          
+
           let referrerBalData;
           if (driverReferrer) {
             referrerBalData = {
@@ -1223,9 +1191,9 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
             };
           }
           await admin
-              .database()
-              .ref("wallet-transactions")
-              .push(referrerBalData);
+            .database()
+            .ref("wallet-transactions")
+            .push(referrerBalData);
           return res.status(200).json({
             status: 1,
             msg: "Referral Code Successfully Applied.",
