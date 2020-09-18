@@ -1214,6 +1214,140 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
   }
 });
 
+exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    if (req.body.tripId && req.body.type) {
+      const businessData = (
+        await admin.database().ref("business-management").once("value")
+      ).val();
+
+      const companyData = (
+        await admin.database().ref("company-details").once("value")
+      ).val();
+
+      const tripData = (
+        await admin
+          .database()
+          .ref("trips/" + req.body.tripId)
+          .once("value")
+      ).val();
+
+      if (tripData) {
+        const vehicleType = (
+          await admin
+            .database()
+            .ref("fleets/" + tripData.vehicleType)
+            .once("value")
+        ).val();
+
+        const passengerData = (
+          await admin
+            .database()
+            .ref("passengers/" + tripData.passengerId)
+            .once("value")
+        ).val();
+
+        const driverData = (
+          await admin
+            .database()
+            .ref("drivers/" + tripData.driverId)
+            .once("value")
+        ).val();
+
+        let emailData = {
+          companyWeb: "https://wrapspeedtaxi.com",
+          title: "Invoice For Trip : #" + req.body.tripId,
+          tripDate: moment(new Date(tripData.pickedUpAt)).format(
+            "Do MMMM YYYY"
+          ),
+          companyLogo: companyData.logo,
+          companyName: companyData.name,
+          currency: businessData.currency,
+          finalFare: tripData.fareDetails.finalFare,
+          tripId: req.body.tripId,
+          routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
+          riderName: passengerData.name,
+          driverName: driverData.name,
+          driverProfilePic: driverData.profilePic
+            ? driverData.profilePic
+            : companyData.logo,
+          fleetType: vehicleType.name,
+          fleetDetail: driverData.brand + " - " + driverData.model,
+          fromTime: moment(new Date(tripData.pickedUpAt)).format("hh:mm A"),
+          fromAddress: tripData.origin.address,
+          endTime: moment(new Date(tripData.droppedOffAt)).format("hh:mm A"),
+          toAddress: tripData.destination.address,
+          baseFare: tripData.fareDetails.baseFare,
+          taxFare: tripData.fareDetails.tax,
+          paidBy: tripData.paymentMethod,
+          paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+        };
+
+        ejs.renderFile(__dirname + "//invoice.ejs", emailData, async function (
+          err,
+          html
+        ) {
+          if (err) {
+            functions.logger.error(err);
+            return res.status(200).json({
+              status: -1,
+              msg: "Unable To Send Invoice Via Mail.",
+            });
+          } else {
+            let transporter = nodemailer.createTransport(mailingDetails);
+            transporter.sendMail(
+              {
+                from: "patrickphp2@gmail.com",
+                to:
+                  req.body.type == "passenger"
+                    ? passengerData.email
+                    : driverData.email,
+                subject: "Invoice For Trip : #" + req.body.tripId,
+                html,
+              },
+              function (err1, info) {
+                if (err1) {
+                  functions.logger.error(err1);
+                  mailer.close();
+                  return res.status(200).json({
+                    status: -1,
+                    msg: "Error occured while sending mail.",
+                  });
+                } else {
+                  functions.logger.info(info);
+                  mailer.close();
+                  return res.status(200).json({
+                    status: -1,
+                    msg: "Mail sent successfully.",
+                  });
+                }
+              }
+            );
+          }
+        });
+      } else {
+        return res.status(200).json({
+          status: -1,
+          msg: "Trip Data Not Found",
+        });
+      }
+    } else {
+      return res.status(200).json({
+        status: -1,
+        msg: "Either Type Or Trip Id Not Found",
+      });
+    }
+  }
+});
+
 exports.scheduledFunction = functions.pubsub
   .schedule("every 15 minutes")
   .onRun((context) => {
