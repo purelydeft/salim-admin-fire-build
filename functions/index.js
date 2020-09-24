@@ -213,13 +213,16 @@ function sendMessage(token, title, message) {
           body: message,
           sound: "default",
         },
+        data: {
+          "notification_foreground": "true",
+        }
       })
       .then((data) => {
-        //console.log(data);
+        functions.logger.info(data)
         return true;
       })
       .catch((err) => {
-        //console.log(err)
+        functions.logger.info(err)
         return false;
       });
   }
