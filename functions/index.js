@@ -54,16 +54,16 @@ exports.sendPush = functions.database
         });
     } else if (original.type == "drivers") {
       admin
-        .database()
-        .ref("drivers")
-        .once("value", function (snap) {
-          snap.forEach((u) => {
-            let user = u.val();
-            if (user.isPushEnabled) {
-              sendMessage(user.pushToken, original.title, original.description);
-            } else return false;
-          });
+      .database()
+      .ref("driver-push-notifications")
+      .once("value", function (snap) {
+        snap.forEach((u) => {
+          let user = u.val();
+          if (user.isPushEnabled) {
+            sendMessage(user.pushToken, original.title, original.description);
+          } else return false;
         });
+      });
     } else if (original.type == "both") {
       admin
         .database()
@@ -77,9 +77,9 @@ exports.sendPush = functions.database
           });
         });
 
-      admin
+        admin
         .database()
-        .ref("drivers")
+        .ref("driver-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -109,16 +109,16 @@ exports.sendPushPromo = functions.database
         });
     } else if (original.type == "drivers") {
       admin
-        .database()
-        .ref("drivers")
-        .once("value", function (snap) {
-          snap.forEach((u) => {
-            let user = u.val();
-            if (user.isPushEnabled) {
-              sendMessage(user.pushToken, original.title, original.description);
-            } else return false;
-          });
+      .database()
+      .ref("driver-push-notifications")
+      .once("value", function (snap) {
+        snap.forEach((u) => {
+          let user = u.val();
+          if (user.isPushEnabled) {
+            sendMessage(user.pushToken, original.title, original.description);
+          } else return false;
         });
+      });
     } else if (original.type == "both") {
       admin
         .database()
@@ -132,9 +132,9 @@ exports.sendPushPromo = functions.database
           });
         });
 
-      admin
+        admin
         .database()
-        .ref("drivers")
+        .ref("driver-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -164,16 +164,16 @@ exports.sendPushNews = functions.database
         });
     } else if (original.type == "drivers") {
       admin
-        .database()
-        .ref("drivers")
-        .once("value", function (snap) {
-          snap.forEach((u) => {
-            let user = u.val();
-            if (user.isPushEnabled) {
-              sendMessage(user.pushToken, original.title, original.description);
-            } else return false;
-          });
+      .database()
+      .ref("driver-push-notifications")
+      .once("value", function (snap) {
+        snap.forEach((u) => {
+          let user = u.val();
+          if (user.isPushEnabled) {
+            sendMessage(user.pushToken, original.title, original.description);
+          } else return false;
         });
+      });
     } else if (original.type == "both") {
       admin
         .database()
@@ -187,9 +187,9 @@ exports.sendPushNews = functions.database
           });
         });
 
-      admin
+        admin
         .database()
-        .ref("drivers")
+        .ref("driver-push-notifications")
         .once("value", function (snap) {
           snap.forEach((u) => {
             let user = u.val();
@@ -393,6 +393,20 @@ exports.createDriver = functions.database
           });
       }
     }
+
+    await admin
+      .database()
+      .ref("driver-wallets/" + key)
+      .set({
+        balance: 0,
+        isKYC: false,
+      });
+    await admin
+      .database()
+      .ref("driver-push-notifications/" + key)
+      .set({
+        isPushEnabled: true,
+      });
   });
 
 exports.updateDriver = functions.database
