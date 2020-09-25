@@ -597,7 +597,7 @@ exports.makeReport = functions.database
         // update driver balance
         admin
           .database()
-          .ref("drivers/" + original.driverId + "/balance")
+          .ref("driver-wallets/" + original.driverId + "/balance")
           .once("value")
           .then(function (snapshot) {
             if (snapshot != null && snapshot != undefined && snapshot != NaN) {
@@ -607,7 +607,7 @@ exports.makeReport = functions.database
               var tmptotal = total.toFixed(2);
               admin
                 .database()
-                .ref("drivers/" + original.driverId + "/balance")
+                .ref("driver-wallets/" + original.driverId + "/balance")
                 .set(tmptotal);
             }
           });
@@ -685,7 +685,7 @@ exports.makeReport = functions.database
             var rating = stars / count;
             console.log("Rating:" + rating);
 
-            if (rating != "NaN") {
+            if (!isNaN(rating)) {
               admin
                 .database()
                 .ref("/drivers/" + original.driverId)
@@ -694,7 +694,7 @@ exports.makeReport = functions.database
               admin
                 .database()
                 .ref("/drivers/" + original.driverId)
-                .update({ rating: 1 });
+                .update({ rating: 0 });
             }
           }
         });
