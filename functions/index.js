@@ -1307,8 +1307,9 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           paidBy: tripData.paymentMethod,
           paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
         };
+        functions.logger.info(emailData);
 
-        ejs.renderFile(__dirname + "//invoice.ejs", emailData, async function (
+        ejs.renderFile(__dirname + "/invoice.ejs", emailData, function (
           err,
           html
         ) {
@@ -1333,16 +1334,14 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
               function (err1, info) {
                 if (err1) {
                   functions.logger.error(err1);
-                  mailer.close();
                   return res.status(200).json({
                     status: -1,
                     msg: "Error occured while sending mail.",
                   });
                 } else {
                   functions.logger.info(info);
-                  mailer.close();
                   return res.status(200).json({
-                    status: -1,
+                    status: 1,
                     msg: "Mail sent successfully.",
                   });
                 }
