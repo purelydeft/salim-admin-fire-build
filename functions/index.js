@@ -1,9 +1,12 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const stripe = require("stripe")("sk_test_oyluHsmvwh807tGsVw8ristF");
-const moment = require("moment");
+// const moment = require("moment");
+const moment = require("moment-timezone");
+moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
+const { firebaseConfig } = require("firebase-functions");
 const cors = require("cors")({
   origin: true,
 });
@@ -243,25 +246,27 @@ function sendSMS(to, mesage) {
 
 exports.deleteRider = functions.database
   .ref("/passengers/{id}")
-  .onDelete(function (change, context) {
+  .onDelete(async function (change, context) {
     const id = context.params.id;
-    admin
-      .auth()
-      .deleteUser(id)
-      .then(() => {
-        console.log("Deleted: " + id);
-        return false;
-      })
-      .catch((err) => {
-        console.log(err);
-        return false;
-      });
+    await admin.database().ref("passenger-wallets/" + id).remove();
+    await admin.database().ref("passenger-push-notifications/" + id).remove();
+    await admin.database().ref("passenger-corporates/" + id).remove();
+    await admin.database().ref("passenger-insurances/" + id).remove();
+    await admin.database().ref("passenger-admin-donations/" + id).remove();
+    await admin.database().ref("passenger-addresses/" + id).remove();
+    await admin.database().ref("passenger-cards/" + id).remove();
+    await admin.database().ref("passenger-emergency/" + id).remove();
+    await admin.database().ref("passenger-subscriptions/" + id).remove();
+    await admin.auth().deleteUser(id);
   });
 
 exports.deleteDriver = functions.database
   .ref("/drivers/{id}")
-  .onDelete(function (change, context) {
+  .onDelete(async function (change, context) {
     const id = context.params.id;
+    await admin.database().ref("driver-wallets/" + id).remove();
+    await admin.database().ref("driver-push-notifications/" + id).remove();
+    await admin.database().ref("driver-cards/" + id).remove();
     admin
       .auth()
       .deleteUser(id)
@@ -368,11 +373,9 @@ exports.createDriver = functions.database
             .database()
             .ref("drivers/" + key + "/password")
             .remove();
-          return false;
         })
         .catch((err) => {
           console.log(err);
-          return false;
         });
     } else if (
       original.createdBy == "self" &&
@@ -389,24 +392,23 @@ exports.createDriver = functions.database
           .then(() => {})
           .catch((err) => {
             console.log(err);
-            return false;
           });
       }
     }
 
     await admin
-      .database()
-      .ref("driver-wallets/" + key)
-      .set({
-        balance: 0,
-        isKYC: false,
-      });
+    .database()
+    .ref("driver-wallets/" + key)
+    .set({
+      balance: 0,
+      isKYC: false,
+    });
     await admin
-      .database()
-      .ref("driver-push-notifications/" + key)
-      .set({
-        isPushEnabled: true,
-      });
+    .database()
+    .ref("driver-push-notifications/" + key)
+    .set({
+      isPushEnabled: true,
+    });
   });
 
 exports.updateDriver = functions.database
@@ -472,11 +474,9 @@ exports.createPassenger = functions.database
             .database()
             .ref("passengers/" + key + "/password")
             .remove();
-          return false;
         })
         .catch((err) => {
           console.log(err);
-          return false;
         });
     } else if (
       original.createdBy == "self" &&
@@ -493,7 +493,6 @@ exports.createPassenger = functions.database
           .then(() => {})
           .catch((err) => {
             console.log(err);
-            return false;
           });
       }
     }
@@ -1256,7 +1255,6 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           .ref("trips/" + req.body.tripId)
           .once("value")
       ).val();
-
       if (tripData) {
         const vehicleType = (
           await admin
