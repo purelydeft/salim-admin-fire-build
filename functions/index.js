@@ -603,7 +603,7 @@ exports.makeReport = functions.database
               var snapshotVal = snapshot.val() ? parseFloat(snapshot.val()) : 0;
               var total =
                 parseFloat(snapshotVal) + parseFloat(original.commission);
-              var tmptotal = total.toFixed(2);
+              var tmptotal = parseFloat(total.toFixed(2));
               admin
                 .database()
                 .ref("driver-wallets/" + original.driverId + "/balance")
