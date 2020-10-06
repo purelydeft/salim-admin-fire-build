@@ -611,49 +611,49 @@ exports.makeReport = functions.database
             }
           });
 
-        // format currency
-        if (original.currency == "$") {
-          const currency = "usd";
-          admin
-            .database()
-            .ref("passengers/" + original.passengerId + "/card")
-            .once("value")
-            .then(function (snapshot) {
-              stripe.charges.create(
-                {
-                  amount: parseInt(fee * 100),
-                  currency: currency,
-                  source: snapshot.val().token,
-                  description: "Charge for tripId: " + context.params.tripId,
-                },
-                { idempotency_key: context.params.tripId },
-                function (err, charge) {
-                  console.log(err);
-                  console.log(charge);
-                  if (err == null) {
-                    console.log("STRIPE CHARGED:" + fee);
-                    admin
-                      .database()
-                      .ref("trips/" + tripId)
-                      .update({
-                        paymentStatus: "success",
-                        paymentId: charge.id,
-                      });
-                  } else {
-                    console.log("STRIPE CHARGED FAILED:" + fee);
-                    admin
-                      .database()
-                      .ref("trips/" + tripId)
-                      .update({
-                        paymentStatus: "failed",
-                      });
-                  }
-                }
-              );
-            });
-        } else {
-          console.log("Currency " + original.currency + " is not supported");
-        }
+        // // format currency
+        // if (original.currency == "$") {
+        //   const currency = "usd";
+        //   admin
+        //     .database()
+        //     .ref("passengers/" + original.passengerId + "/card")
+        //     .once("value")
+        //     .then(function (snapshot) {
+        //       stripe.charges.create(
+        //         {
+        //           amount: parseInt(fee * 100),
+        //           currency: currency,
+        //           source: snapshot.val().token,
+        //           description: "Charge for tripId: " + context.params.tripId,
+        //         },
+        //         { idempotency_key: context.params.tripId },
+        //         function (err, charge) {
+        //           console.log(err);
+        //           console.log(charge);
+        //           if (err == null) {
+        //             console.log("STRIPE CHARGED:" + fee);
+        //             admin
+        //               .database()
+        //               .ref("trips/" + tripId)
+        //               .update({
+        //                 paymentStatus: "success",
+        //                 paymentId: charge.id,
+        //               });
+        //           } else {
+        //             console.log("STRIPE CHARGED FAILED:" + fee);
+        //             admin
+        //               .database()
+        //               .ref("trips/" + tripId)
+        //               .update({
+        //                 paymentStatus: "failed",
+        //               });
+        //           }
+        //         }
+        //       );
+        //     });
+        // } else {
+        //   console.log("Currency " + original.currency + " is not supported");
+        // }
       }
     }
 
@@ -891,6 +891,23 @@ exports.tripUpdateTrigger = functions.database
           .once("value")
       ).val();
 
+      let splitPayments = [];
+      let amount  = after.fareDetails.finalFare;
+      const splits = (
+        await admin
+          .database()
+          .ref("trip-split-payment/" + key)
+          .once("value")
+      ).val();
+      if (splits != null) {
+        for (const [key, value] of Object.entries(splits)) {
+          splitPayments.push(value);
+        }
+        splitPayments = splitPayments.reverse();
+      } 
+      
+      amount = amount / (splitPayments.length + 1)
+
       let emailData = {
         companyWeb: "https://wrapspeedtaxi.com",
         title: "Invoice For Trip : #" + key,
@@ -902,6 +919,7 @@ exports.tripUpdateTrigger = functions.database
         tripId: key,
         routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
         riderName: passengerData.name,
+        riderNumber: passengerData.phoneNumber,
         driverName: driverData.name,
         driverProfilePic: driverData.profilePic
           ? driverData.profilePic
@@ -916,6 +934,8 @@ exports.tripUpdateTrigger = functions.database
         taxFare: after.fareDetails.tax,
         paidBy: after.paymentMethod,
         paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+        splittedAmount : amount.toFixed(2),
+        splitAccounts : splitPayments
       };
 
       ejs.renderFile(__dirname + "//invoice.ejs", emailData, async function (
@@ -1276,6 +1296,23 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
             .ref("drivers/" + tripData.driverId)
             .once("value")
         ).val();
+        
+        let splitPayments = [];
+        let amount  = tripData.fareDetails.finalFare;
+        const splits = (
+          await admin
+            .database()
+            .ref("trip-split-payment/" + req.body.tripId)
+            .once("value")
+        ).val();
+        if (splits != null) {
+          for (const [key, value] of Object.entries(splits)) {
+            splitPayments.push(value);
+          }
+          splitPayments = splitPayments.reverse();
+        } 
+        
+        amount = amount / (splitPayments.length + 1)
 
         let emailData = {
           companyWeb: "https://wrapspeedtaxi.com",
@@ -1290,6 +1327,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           tripId: req.body.tripId,
           routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
           riderName: passengerData.name,
+          riderNumber: passengerData.phoneNumber,
           driverName: driverData.name,
           driverProfilePic: driverData.profilePic
             ? driverData.profilePic
@@ -1304,6 +1342,8 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           taxFare: tripData.fareDetails.tax,
           paidBy: tripData.paymentMethod,
           paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+          splittedAmount : amount.toFixed(2),
+          splitAccounts : splitPayments
         };
         functions.logger.info(emailData);
 
