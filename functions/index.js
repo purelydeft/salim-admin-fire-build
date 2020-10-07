@@ -29,6 +29,7 @@ const twilioService = "VAc000c44d7d97e4ec29ab055936655883";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
 
+const TRIP_STATUS_ACCEPTED = "accepted";
 const TRIP_STATUS_WAITING = "waiting";
 const TRIP_STATUS_GOING = "going";
 const TRIP_STATUS_FINISHED = "finished";
@@ -75,7 +76,8 @@ function sendMessage(token, title, message) {
 }
 
 function sendSMS(to, mesage) {
-  client.messages
+  try {
+    client.messages
     .create({
       body: mesage,
       from: twilioNumber,
@@ -85,6 +87,10 @@ function sendSMS(to, mesage) {
       functions.logger.info(message.sid);
     })
     .catch((err) => functions.logger.error(err));
+  } catch(err) {
+    functions.logger.error(err)
+  }
+  
 }
 
 /************************************Live DB Functions*************************************************/
@@ -2125,41 +2131,41 @@ exports.tripUpdateTriggerDev = functions.database.instance('wrapspeedtaxidev')
     const driverId = after.driverId;
     const passengerId = after.passengerId;
 
-    if (after.status == TRIP_STATUS_WAITING) {
+    if (after.status == TRIP_STATUS_WAITING && before.status == TRIP_STATUS_ACCEPTED) {
       admin
-        .database(devMode)
-        .ref("drivers/" + driverId)
-        .once("value", function (snapshot) {
-          const driver = snapshot.val();
-          const msg = "Pick Up Available : Trip ID : " + key;
-          if (driver.isPhoneVerified) {
-            sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-          }
-          if (driver.isPushEnabled) {
-            sendMessage(
-              driver.pushToken,
-              "Pick Up Available",
-              "Driver Notification : " + msg
-            );
-          }
-        });
-      admin
-        .database(devMode)
-        .ref("passengers/" + passengerId)
-        .once("value", function (snapshot) {
-          const passenger = snapshot.val();
-          const msg = "Driver To Be Arrived Shortly : Trip ID : " + key;
-          if (passenger.isPhoneVerified) {
-            sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
-          }
-          if (passenger.isPushEnabled) {
-            sendMessage(
-              passenger.pushToken,
-              "Driver To Be Arrived Shortly",
-              "Passenger Notification : " + msg
-            );
-          }
-        });
+      .database(devMode)
+      .ref("drivers/" + driverId)
+      .once("value", function (snapshot) {
+        const driver = snapshot.val();
+        const msg = "You have reached the location : Trip ID : " + key;
+        if (driver.isPhoneVerified) {
+          sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+        }
+        if (driver.isPushEnabled) {
+          sendMessage(
+            driver.pushToken,
+            "Pick Up Available",
+            "Driver Notification : " + msg
+          );
+        }
+      });
+    admin
+      .database(devMode)
+      .ref("passengers/" + passengerId)
+      .once("value", function (snapshot) {
+        const passenger = snapshot.val();
+        const msg = "Driver has arrived at the location : Trip ID : " + key;
+        if (passenger.isPhoneVerified) {
+          sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
+        }
+        if (passenger.isPushEnabled) {
+          sendMessage(
+            passenger.pushToken,
+            "Driver Arrived",
+            "Passenger Notification : " + msg
+          );
+        }
+      });
     } else if (
       after.status == TRIP_STATUS_GOING &&
       before.status == TRIP_STATUS_WAITING
@@ -2258,7 +2264,7 @@ exports.tripUpdateTriggerDev = functions.database.instance('wrapspeedtaxidev')
       ).val();
 
       let splitPayments = [];
-      let amount  = after.fareDetails.finalFare;
+      let amount  = after.fareDetails.finalFare + after.waitingCharges;
       const splits = (
         await admin
           .database(devMode)
@@ -2281,7 +2287,7 @@ exports.tripUpdateTriggerDev = functions.database.instance('wrapspeedtaxidev')
         companyLogo: companyData.logo,
         companyName: companyData.name,
         currency: businessData.currency,
-        finalFare: after.fareDetails.finalFare,
+        finalFare: (after.fareDetails.finalFare + after.waitingCharges).toFixed(2),
         tripId: key,
         routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
         riderName: passengerData.name,
@@ -2664,7 +2670,7 @@ exports.generateInvoiceMailDev = functions.https.onRequest(async (req, res) => {
         ).val();
         
         let splitPayments = [];
-        let amount  = tripData.fareDetails.finalFare;
+        let amount  = tripData.fareDetails.finalFare + after.waitingCharges;
         const splits = (
           await admin
             .database(devMode)
@@ -2689,7 +2695,7 @@ exports.generateInvoiceMailDev = functions.https.onRequest(async (req, res) => {
           companyLogo: companyData.logo,
           companyName: companyData.name,
           currency: businessData.currency,
-          finalFare: tripData.fareDetails.finalFare,
+          finalFare: (tripData.fareDetails.finalFare + after.waitingCharges).toFixed(2),
           tripId: req.body.tripId,
           routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
           riderName: passengerData.name,
