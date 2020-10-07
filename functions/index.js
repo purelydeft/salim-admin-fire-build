@@ -2263,7 +2263,10 @@ exports.tripUpdateTriggerDev = functions.database.instance('wrapspeedtaxidev')
       ).val();
 
       let splitPayments = [];
-      let amount  = after.fareDetails.finalFare + after.waitingCharges;
+      let amount  = after.fareDetails.finalFare;
+      if(after.waitingCharges) amount += after.waitingCharges;
+      let finalFare = amount;
+
       const splits = (
         await admin
           .database(devMode)
@@ -2286,7 +2289,7 @@ exports.tripUpdateTriggerDev = functions.database.instance('wrapspeedtaxidev')
         companyLogo: companyData.logo,
         companyName: companyData.name,
         currency: businessData.currency,
-        finalFare: (after.fareDetails.finalFare + after.waitingCharges).toFixed(2),
+        finalFare: finalFare.toFixed(2),
         tripId: key,
         routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
         riderName: passengerData.name,
@@ -2669,7 +2672,10 @@ exports.generateInvoiceMailDev = functions.https.onRequest(async (req, res) => {
         ).val();
         
         let splitPayments = [];
-        let amount  = tripData.fareDetails.finalFare + after.waitingCharges;
+        let amount  = tripData.fareDetails.finalFare;
+        if(after.waitingCharges) amount += after.waitingCharges;
+        let finalFare = amount;
+
         const splits = (
           await admin
             .database(devMode)
@@ -2694,7 +2700,7 @@ exports.generateInvoiceMailDev = functions.https.onRequest(async (req, res) => {
           companyLogo: companyData.logo,
           companyName: companyData.name,
           currency: businessData.currency,
-          finalFare: (tripData.fareDetails.finalFare + after.waitingCharges).toFixed(2),
+          finalFare: finalFare.toFixed(2),
           tripId: req.body.tripId,
           routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
           riderName: passengerData.name,
