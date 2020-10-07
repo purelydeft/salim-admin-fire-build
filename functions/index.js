@@ -36,12 +36,11 @@ const TRIP_STATUS_FINISHED = "finished";
 const TRIP_STATUS_CANCELED = "canceled";
 const PAYMENT_METHOD_CARD = "card";
 
-const liveDb = "https://wrapspeedtaxi-286206.firebaseio.com"; 
+// const liveDb = "https://wrapspeedtaxi-286206.firebaseio.com"; 
 const devDb = 'https://wrapspeedtaxidev.firebaseio.com';
 
-const liveMode = admin.initializeApp({
-  databaseURL : liveDb
-}, 'live');
+admin.initializeApp();
+
 const devMode = admin.initializeApp({
   databaseURL : devDb
 }, 'dev')
