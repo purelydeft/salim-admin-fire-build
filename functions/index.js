@@ -1316,7 +1316,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
         
         let splitPayments = [];
         let amount  = tripData.fareDetails.finalFare;
-        if(after.waitingCharges) amount += after.waitingCharges;
+        if(tripData.waitingCharges) amount += tripData.waitingCharges;
         let finalFare = amount;
   
         const splits = (
