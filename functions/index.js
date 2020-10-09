@@ -1206,7 +1206,7 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
           }
           await admin
             .database()
-            .ref("wallet-transactions")
+            .ref("payment-transactions/wallet")
             .push(refereeBalData);
 
           const referrerBalance = (
@@ -1248,7 +1248,7 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
           }
           await admin
             .database()
-            .ref("wallet-transactions")
+            .ref("payment-transactions/wallet")
             .push(referrerBalData);
           return res.status(200).json({
             status: 1,
