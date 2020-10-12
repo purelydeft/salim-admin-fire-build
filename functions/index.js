@@ -4,6 +4,7 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
+const { ref } = require("firebase-functions/lib/providers/database");
 const cors = require("cors")({
   origin: true,
 });
@@ -1695,9 +1696,75 @@ exports.scheduledFunction = functions.pubsub
       });
   });
 
+
+exports.complaintCreateTrigger = functions.database
+  .ref("/complaints/{id}")
+  .onCreate(async function (snapshot, context) {
+    const id = context.params.id;
+    const original = snapshot.val();
+    let type = original.driverId ? 'drivers' : 'passengers';
+    let userId = original.driverId ? original.driverId : original.passengerId;
+    const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
+    const admin = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').once("value")).val();
+
+    const companyData = (
+      await admin.database().ref("company-details").once("value")
+    ).val();
+
+    let emailHeader = (
+      await admin.database().ref("email-templates/header").once("value")
+    ).val();
+
+    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
+    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
+    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
+    
+    let emailBody = (
+      await admin.database().ref("email-templates/new-complaint").once("value")
+      ).val();
+    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint Registered");
+    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
+    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+    let emailFooter = (
+      await admin.database().ref("email-templates/footer").once("value")
+    ).val();
+
+    let header = ejs.render(emailHeader.template);
+    let body = ejs.render(emailBody.template);
+    let footer = ejs.render(emailFooter.template);
+
+    let emailData = {
+      pageTitle : "Complaint Registered",
+      header,
+      body,
+      footer
+    };
+
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
+      err,
+      html
+    ) {
+      if (err) {
+        functions.logger.error(err);
+      } else {
+        let callBack =  function (err1, info) {
+          if (err1) {
+            functions.logger.error(err1);
+          } else {
+            functions.logger.info(info);
+          }
+        };
+        sendEmail({
+          to: user.email,
+          subject: "Complaint Registered",
+          html,
+        }, callBack);
+      }
+    });
+  });
+
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
-
 exports.generateMailDev = functions.https.onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Credentials", "true"); // vital
@@ -1708,22 +1775,12 @@ exports.generateMailDev = functions.https.onRequest(async (req, res) => {
     res.set("Access-Control-Max-Age", "3600");
     res.status(204).send("");
   } else {
-    const tripId = "-MJCEc_iDqgMYnv9l319";
-    const tripData = (
-      await admin.database().ref("trips/" + tripId).once("value")
-    ).val();
-    
-    const vehicleType = (
-      await admin.database().ref("fleets/" + tripData.vehicleType).once("value")
-    ).val();
-
-    const driverData = (
-      await admin.database().ref("drivers/" + tripData.driverId).once("value")
-    ).val();
-
-    const passengerData = (
-      await admin.database().ref("passengers/" + tripData.passengerId).once("value")
-    ).val();
+    const devAdmin = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').once("value")).val();
+    return res.status(200).json({
+      status: -1,
+      msg: "Unable To Send Invoice Via Mail.",
+      devAdmin
+    });
 
     const companyData = (
       await admin.database().ref("company-details").once("value")
@@ -1733,27 +1790,18 @@ exports.generateMailDev = functions.https.onRequest(async (req, res) => {
       await admin.database().ref("email-templates/header").once("value")
     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment(tripData.departDate).format("Do MMM YYYY hh:mm A"));
+    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
     emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
     emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
     
     let emailBody = (
-      await admin.database().ref("email-templates/ride-offer").once("value")
+      await admin.database().ref("email-templates/new-complaint").once("value")
     ).val();
-
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Ride Accepted");
-    emailBody.template = emailBody.template.replace(new RegExp("{routeMap}", 'g'), "https://wrapspeedtaxi.com/public/email_images/map.png"); 
-    emailBody.template = emailBody.template.replace(new RegExp("{driverName}", 'g'), driverData.name);
-    emailBody.template = emailBody.template.replace(new RegExp("{driverPic}", 'g'), driverData.profilePic
-    ? driverData.profilePic : companyData.logo); 
-    emailBody.template = emailBody.template.replace(new RegExp("{fleetType}", 'g'), vehicleType.name);
-    emailBody.template = emailBody.template.replace(new RegExp("{fleetDetail}", 'g'), driverData.brand + " - " + driverData.model);
-    emailBody.template = emailBody.template.replace(new RegExp("{fromAddress}", 'g'), tripData.origin.address);
-    emailBody.template = emailBody.template.replace(new RegExp("{toAddress}", 'g'), tripData.destination.address);
-    
+  
+    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint : #"+ id);
+    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Your complaint is successfully registered. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
     emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
-
-
+  
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -1804,5 +1852,4 @@ exports.generateMailDev = functions.https.onRequest(async (req, res) => {
     });
   }
 });
-
 /************************************End Testing Functions*************************************************/
