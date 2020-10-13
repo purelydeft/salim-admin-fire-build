@@ -1705,7 +1705,11 @@ exports.complaintCreateTrigger = functions.database
     let type = original.driverId ? 'drivers' : 'passengers';
     let userId = original.driverId ? original.driverId : original.passengerId;
     const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
-    const admin = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').once("value")).val();
+    const admins = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"))
+    let adminData = {};
+    for(const [key, value] of Object.entries(admins)) {
+      adminData = value;
+    }
 
     const companyData = (
       await admin.database().ref("company-details").once("value")
@@ -1756,12 +1760,218 @@ exports.complaintCreateTrigger = functions.database
         };
         sendEmail({
           to: user.email,
+          bcc : adminData.email,
           subject: "Complaint Registered",
           html,
         }, callBack);
       }
     });
   });
+
+exports.complaintUpdateTrigger = functions.database
+  .ref("/complaints/{id}")
+  .onUpdate(async function (snapshot, context) {
+    const id = context.params.id;
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+   
+    let type = after.driverId ? 'drivers' : 'passengers';
+    let userId = after.driverId ? after.driverId : after.passengerId;
+    const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
+    const admins = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"))
+    let adminData = {};
+    for(const [key, value] of Object.entries(admins)) {
+      adminData = value;
+    }
+    const companyData = (
+      await admin.database().ref("company-details").once("value")
+    ).val();
+    if(after.status == '1' && before.status != '1') {
+      let emailHeader = (
+        await admin.database().ref("email-templates/header").once("value")
+      ).val();
+  
+      emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
+      emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
+      emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
+      
+      let emailBody = (
+        await admin.database().ref("email-templates/new-complaint").once("value")
+        ).val();
+      emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint Is Under Processing");
+      emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
+      emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
+      ).val();
+  
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
+  
+      let emailData = {
+        pageTitle : "Complaint Is Under Processing",
+        header,
+        body,
+        footer
+      };
+  
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (
+        err,
+        html
+      ) {
+        if (err) {
+          functions.logger.error(err);
+        } else {
+          let callBack =  function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
+            } else {
+              functions.logger.info(info);
+            }
+          };
+          sendEmail({
+            to: user.email,
+            bcc : adminData.email,
+            subject: "Complaint Is Under Processing",
+            html,
+          }, callBack);
+        }
+      });
+    } else if(after.status == '2' && before.status != '2') {
+      let emailHeader = (
+        await admin.database().ref("email-templates/header").once("value")
+      ).val();
+  
+      emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
+      emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
+      emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
+      
+      let emailBody = (
+        await admin.database().ref("email-templates/new-complaint").once("value")
+        ).val();
+      emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint Is Resolved");
+      emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
+      emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
+      ).val();
+  
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
+  
+      let emailData = {
+        pageTitle : "Complaint Is Resolved",
+        header,
+        body,
+        footer
+      };
+  
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (
+        err,
+        html
+      ) {
+        if (err) {
+          functions.logger.error(err);
+        } else {
+          let callBack =  function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
+            } else {
+              functions.logger.info(info);
+            }
+          };
+          sendEmail({
+            to: user.email,
+            bcc : adminData.email,
+            subject: "Complaint Is Resolved",
+            html,
+          }, callBack);
+        }
+      });
+    }
+
+  });
+
+exports.complaintResponseTrigger = functions.database
+  .ref("/complaint-responses/{id}")
+  .onCreate(async function (snapshot, context) {
+    const id = context.params.id;
+    const original = snapshot.val();
+    const complaintData = (
+      await admin.database().ref("complaints/" + original.complaintId).once("value")
+    ).val();
+    const type = complaintData.driverId ? 'drivers' : 'passengers';
+    const userId = complaintData.driverId ? complaintData.driverId : complaintData.passengerId;
+    const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
+    const admins = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"))
+    let adminData;
+    
+    for(const [key, value] of Object.entries(admins)) {
+      adminData = value;
+    }
+
+    const companyData = (
+      await admin.database().ref("company-details").once("value")
+    ).val();
+
+    let emailHeader = (
+      await admin.database().ref("email-templates/header").once("value")
+    ).val();
+
+    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
+    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
+    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
+    
+    let emailBody = (
+      await admin.database().ref("email-templates/new-complaint-response").once("value")
+      ).val();
+    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "New Complaint Reply");
+    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
+    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+    
+    let emailFooter = (
+      await admin.database().ref("email-templates/footer").once("value")
+    ).val();
+
+    let header = ejs.render(emailHeader.template);
+    let body = ejs.render(emailBody.template);
+    let footer = ejs.render(emailFooter.template);
+
+    let emailData = {
+      pageTitle : "New Complaint Reply",
+      header,
+      body,
+      footer
+    };
+
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
+      err,
+      html
+    ) {
+      if (err) {
+        functions.logger.error(err);
+      } else {
+        let callBack =  function (err1, info) {
+          if (err1) {
+            functions.logger.error(err1);
+          } else {
+            functions.logger.info(info);
+          }
+        };
+        sendEmail({
+          to: original.adminId ? user.email : 'patrickphp3@gmail.com',
+          subject: "New Complaint Reply",
+          html,
+        }, callBack);
+      }
+    });
+    
+  });
+
+
+
 
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
@@ -1775,7 +1985,9 @@ exports.generateMailDev = functions.https.onRequest(async (req, res) => {
     res.set("Access-Control-Max-Age", "3600");
     res.status(204).send("");
   } else {
-    const devAdmin = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').once("value")).val();
+    
+    const devAdmin = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"));
+    
     return res.status(200).json({
       status: -1,
       msg: "Unable To Send Invoice Via Mail.",
