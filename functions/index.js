@@ -1696,7 +1696,6 @@ exports.scheduledFunction = functions.pubsub
       });
   });
 
-
 exports.complaintCreateTrigger = functions.database
   .ref("/complaints/{id}")
   .onCreate(async function (snapshot, context) {
@@ -1970,9 +1969,6 @@ exports.complaintResponseTrigger = functions.database
     
   });
 
-
-
-
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
 exports.generateMailDev = functions.https.onRequest(async (req, res) => {
@@ -1985,83 +1981,178 @@ exports.generateMailDev = functions.https.onRequest(async (req, res) => {
     res.set("Access-Control-Max-Age", "3600");
     res.status(204).send("");
   } else {
-    
-    const devAdmin = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"));
-    
-    return res.status(200).json({
-      status: -1,
-      msg: "Unable To Send Invoice Via Mail.",
-      devAdmin
-    });
+    if (req.body.tripId && req.body.type) {
+      const businessData = (
+        await admin.database().ref("business-management").once("value")
+      ).val();
 
-    const companyData = (
-      await admin.database().ref("company-details").once("value")
-    ).val();
+      const companyData = (
+        await admin.database().ref("company-details").once("value")
+      ).val();
 
-    let emailHeader = (
-      await admin.database().ref("email-templates/header").once("value")
-    ).val();
+      const tripData = (
+        await admin
+          .database()
+          .ref("trips/" + req.body.tripId)
+          .once("value")
+      ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
-    let emailBody = (
-      await admin.database().ref("email-templates/new-complaint").once("value")
-    ).val();
+      if (tripData) {
+        const vehicleType = (
+          await admin
+            .database()
+            .ref("fleets/" + tripData.vehicleType)
+            .once("value")
+        ).val();
+
+        const passengerData = (
+          await admin
+            .database()
+            .ref("passengers/" + tripData.passengerId)
+            .once("value")
+        ).val();
+
+        const driverData = (
+          await admin
+            .database()
+            .ref("drivers/" + tripData.driverId)
+            .once("value")
+        ).val();
+        
+        let splitPayments = [];
+        let amount  = tripData.fareDetails.finalFare;
+        if(tripData.waitingCharges) amount += tripData.waitingCharges;
+        let finalFare = amount;
   
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint : #"+ id);
-    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Your complaint is successfully registered. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
-  
-    let emailFooter = (
-      await admin.database().ref("email-templates/footer").once("value")
-    ).val();
+        const splits = (
+          await admin
+            .database()
+            .ref("trip-split-payment/" + req.body.tripId)
+            .once("value")
+        ).val();
+        if (splits != null) {
+          for (const [key, value] of Object.entries(splits)) {
+            splitPayments.push(value);
+          }
+          splitPayments = splitPayments.reverse();
+        } 
+        
+        amount = amount / (splitPayments.length + 1);
 
-    let header = ejs.render(emailHeader.template);
-    let body = ejs.render(emailBody.template);
-    let footer = ejs.render(emailFooter.template);
+        let emailHeader = (
+          await admin.database().ref("email-templates/header").once("value")
+        ).val();
+       
+        emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment(tripData.pickedUpAt).format("Do MMM YYYY"));
+        emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
+        emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
 
-    let emailData = {
-      pageTitle : "Ride Accepted : " + tripId,
-      header,
-      body,
-      footer
-    };
-
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
-      if (err) {
-        functions.logger.error(err);
-        return res.status(200).json({
-          status: -1,
-          msg: "Unable To Send Invoice Via Mail.",
+        let emailBody = (
+          await admin.database().ref("email-templates/invoice").once("value")
+        ).val();
+        // Invoice Body Replacement 
+        emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+        emailBody.template = emailBody.template.replace(new RegExp("{currency}", 'g'), businessData.currency);
+        emailBody.template = emailBody.template.replace(new RegExp("{finalFare}", 'g'), finalFare.toFixed(2));
+        emailBody.template = emailBody.template.replace(new RegExp("{tripId}", 'g'), req.body.tripId);
+        emailBody.template = emailBody.template.replace(new RegExp("{routeMap}", 'g'), "https://wrapspeedtaxi.com/public/email_images/map.png"); 
+        emailBody.template = emailBody.template.replace(new RegExp("{riderName}", 'g'), passengerData.name);
+        emailBody.template = emailBody.template.replace(new RegExp("{riderNumber}", 'g'), passengerData.phoneNumber);
+        emailBody.template = emailBody.template.replace(new RegExp("{driverName}", 'g'), driverData.name);
+        emailBody.template = emailBody.template.replace(new RegExp("{driverProfilePic}", 'g'), driverData.profilePic
+        ? driverData.profilePic : companyData.logo); 
+        emailBody.template = emailBody.template.replace(new RegExp("{fleetType}", 'g'), vehicleType.name);
+        emailBody.template = emailBody.template.replace(new RegExp("{fleetDetail}", 'g'), driverData.brand + " - " + driverData.model);
+        emailBody.template = emailBody.template.replace(new RegExp("{fromTime}", 'g'), moment(new Date(tripData.pickedUpAt)).format("hh:mm A"));
+        emailBody.template = emailBody.template.replace(new RegExp("{fromAddress}", 'g'), tripData.origin.address);
+        emailBody.template = emailBody.template.replace(new RegExp("{endTime}", 'g'), moment(new Date(tripData.droppedOffAt)).format("hh:mm A"));
+        emailBody.template = emailBody.template.replace(new RegExp("{toAddress}", 'g'), tripData.destination.address);
+        emailBody.template = emailBody.template.replace(new RegExp("{baseFare}", 'g'), tripData.fareDetails.baseFare.toFixed(2));
+        emailBody.template = emailBody.template.replace(new RegExp("{taxFare}", 'g'), tripData.fareDetails.tax.toFixed(2));
+        emailBody.template = emailBody.template.replace(new RegExp("{paidBy}", 'g'), tripData.paymentMethod);
+        emailBody.template = emailBody.template.replace(new RegExp("{splittedAmount}", 'g'), amount.toFixed(2));
+        if(tripData.paymentMethod == 'cash') {
+          emailBody.template = emailBody.template.replace(new RegExp("{paidByImage}", 'g'), "https://wrapspeedtaxi.com/public/email_images/cash.png");
+        } else if(tripData.paymentMethod == 'wallet') {
+          emailBody.template = emailBody.template.replace(new RegExp("{paidByImage}", 'g'), "https://wrapspeedtaxi.com/public/email_images/wallet.png");
+        } else {
+          emailBody.template = emailBody.template.replace(new RegExp("{paidByImage}", 'g'), "https://wrapspeedtaxi.com/public/email_images/card.png");
+        }
+        let splitRows = '';
+        splitPayments.forEach(async element => {
+          let emailBodySplitPayment = (
+            await admin.database().ref("email-templates/invoice-split-payment-row").once("value")
+          ).val();
+          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{name}", 'g'), element.name );
+          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{phoneNumber}", 'g'), element.mobile);
+          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{currency}", 'g'), businessData.currency);
+          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{splittedAmount}", 'g'), amount.toFixed(2));
+          splitRows += emailBodySplitPayment.template;
         });
-      } else {
-        let callBack =  function (err1, info) {
-          if (err1) {
-            functions.logger.error(err1);
+        emailBody.template = emailBody.template.replace(new RegExp("{splitRows}", 'g'), splitRows);
+        // Invoice Body Replacement Ends
+
+        let emailFooter = (
+          await admin.database().ref("email-templates/footer").once("value")
+        ).val();
+
+        let header = ejs.render(emailHeader.template);
+        let body = ejs.render(emailBody.template);
+        let footer = ejs.render(emailFooter.template);
+    
+        let emailData = {
+          pageTitle : "Invoice For Trip : #" + req.body.tripId,
+          header,
+          body,
+          footer
+        };
+
+        ejs.renderFile(__dirname + "/email.ejs", emailData, function (
+          err,
+          html
+        ) {
+          if (err) {
+            functions.logger.error(err);
             return res.status(200).json({
               status: -1,
-              msg: "Error occured while sending mail.",
+              msg: "Unable To Send Invoice Via Mail.",
             });
           } else {
-            functions.logger.info(info);
-            return res.status(200).json({
-              status: 1,
-              msg: "Mail sent successfully.",
-            });
+            let callBack = function (err1, info) {
+              if (err1) {
+                functions.logger.error(err1);
+                return res.status(200).json({
+                  status: -1,
+                  msg: "Error occured while sending mail.",
+                });
+              } else {
+                functions.logger.info(info);
+                return res.status(200).json({
+                  status: 1,
+                  msg: "Mail sent successfully.",
+                });
+              }
+            };
+            sendEmail({
+              to: req.body.email,
+              bcc : null,
+              subject : "Invoice For Trip : #" + req.body.tripId,
+              html
+            }, callBack);
           }
-        };
-        sendEmail({
-          to: req.body.email,
-          subject: "Test Mail",
-          html,
-        }, callBack);
+        });
+      } else {
+        return res.status(200).json({
+          status: -1,
+          msg: "Trip Data Not Found",
+        });
       }
-    });
+    } else {
+      return res.status(200).json({
+        status: -1,
+        msg: "Either Type Or Trip Id Not Found",
+      });
+    }
   }
 });
 /************************************End Testing Functions*************************************************/
