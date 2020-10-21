@@ -30,6 +30,7 @@ const twilioService = "VAc000c44d7d97e4ec29ab055936655883";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
 
+const TRIP_STATUS_PENDING = "pending";
 const TRIP_STATUS_ACCEPTED = "accepted";
 const TRIP_STATUS_WAITING = "waiting";
 const TRIP_STATUS_GOING = "going";
@@ -52,15 +53,15 @@ function sendMessage(token, title, message) {
           sound: "default",
         },
         data: {
-          "notification_foreground": "true",
-        }
+          notification_foreground: "true",
+        },
       })
       .then((data) => {
-        functions.logger.info(data)
+        functions.logger.info(data);
         return true;
       })
       .catch((err) => {
-        functions.logger.info(err)
+        functions.logger.info(err);
         return false;
       });
   }
@@ -88,12 +89,9 @@ function sendEmail(emailData, callBack) {
     const transporter = nodemailer.createTransport(mailingDetails);
     let data = emailData;
     data.from = "patrickphp2@gmail.com";
-    transporter.sendMail(
-      data,
-      callBack
-    );
-  } catch(err) {
-    functions.logger.error(err)
+    transporter.sendMail(data, callBack);
+  } catch (err) {
+    functions.logger.error(err);
   }
 }
 
@@ -117,16 +115,16 @@ exports.sendPush = functions.database
         });
     } else if (original.type == "drivers") {
       admin
-      .database()
-      .ref("driver-push-notifications")
-      .once("value", function (snap) {
-        snap.forEach((u) => {
-          let user = u.val();
-          if (user.isPushEnabled) {
-            sendMessage(user.pushToken, original.title, original.description);
-          } else return false;
+        .database()
+        .ref("driver-push-notifications")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
         });
-      });
     } else if (original.type == "both") {
       admin
         .database()
@@ -140,7 +138,7 @@ exports.sendPush = functions.database
           });
         });
 
-        admin
+      admin
         .database()
         .ref("driver-push-notifications")
         .once("value", function (snap) {
@@ -172,16 +170,16 @@ exports.sendPushPromo = functions.database
         });
     } else if (original.type == "drivers") {
       admin
-      .database()
-      .ref("driver-push-notifications")
-      .once("value", function (snap) {
-        snap.forEach((u) => {
-          let user = u.val();
-          if (user.isPushEnabled) {
-            sendMessage(user.pushToken, original.title, original.description);
-          } else return false;
+        .database()
+        .ref("driver-push-notifications")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
         });
-      });
     } else if (original.type == "both") {
       admin
         .database()
@@ -195,7 +193,7 @@ exports.sendPushPromo = functions.database
           });
         });
 
-        admin
+      admin
         .database()
         .ref("driver-push-notifications")
         .once("value", function (snap) {
@@ -227,16 +225,16 @@ exports.sendPushNews = functions.database
         });
     } else if (original.type == "drivers") {
       admin
-      .database()
-      .ref("driver-push-notifications")
-      .once("value", function (snap) {
-        snap.forEach((u) => {
-          let user = u.val();
-          if (user.isPushEnabled) {
-            sendMessage(user.pushToken, original.title, original.description);
-          } else return false;
+        .database()
+        .ref("driver-push-notifications")
+        .once("value", function (snap) {
+          snap.forEach((u) => {
+            let user = u.val();
+            if (user.isPushEnabled) {
+              sendMessage(user.pushToken, original.title, original.description);
+            } else return false;
+          });
         });
-      });
     } else if (original.type == "both") {
       admin
         .database()
@@ -250,7 +248,7 @@ exports.sendPushNews = functions.database
           });
         });
 
-        admin
+      admin
         .database()
         .ref("driver-push-notifications")
         .once("value", function (snap) {
@@ -268,15 +266,42 @@ exports.deleteRider = functions.database
   .ref("/passengers/{id}")
   .onDelete(async function (change, context) {
     const id = context.params.id;
-    await admin.database().ref("passenger-wallets/" + id).remove();
-    await admin.database().ref("passenger-push-notifications/" + id).remove();
-    await admin.database().ref("passenger-corporates/" + id).remove();
-    await admin.database().ref("passenger-insurances/" + id).remove();
-    await admin.database().ref("passenger-admin-donations/" + id).remove();
-    await admin.database().ref("passenger-addresses/" + id).remove();
-    await admin.database().ref("passenger-cards/" + id).remove();
-    await admin.database().ref("passenger-emergency/" + id).remove();
-    await admin.database().ref("passenger-subscriptions/" + id).remove();
+    await admin
+      .database()
+      .ref("passenger-wallets/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-push-notifications/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-corporates/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-insurances/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-admin-donations/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-addresses/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-cards/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-emergency/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("passenger-subscriptions/" + id)
+      .remove();
     await admin.auth().deleteUser(id);
   });
 
@@ -284,9 +309,18 @@ exports.deleteDriver = functions.database
   .ref("/drivers/{id}")
   .onDelete(async function (change, context) {
     const id = context.params.id;
-    await admin.database().ref("driver-wallets/" + id).remove();
-    await admin.database().ref("driver-push-notifications/" + id).remove();
-    await admin.database().ref("driver-cards/" + id).remove();
+    await admin
+      .database()
+      .ref("driver-wallets/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("driver-push-notifications/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("driver-cards/" + id)
+      .remove();
     admin
       .auth()
       .deleteUser(id)
@@ -351,16 +385,34 @@ exports.createAdmin = functions.database
       await admin.database().ref("email-templates/header").once("value")
     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
     let emailBody = (
       await admin.database().ref("email-templates/welcome").once("value")
-      ).val();
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Welcome User : " + original.name.toUpperCase());
-    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+    ).val();
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{title}", "g"),
+      "Welcome User : " + original.name.toUpperCase()
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{content}", "g"),
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{companyWeb}", "g"),
+      "https://wrapspeedtaxi.com/"
+    );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -370,31 +422,31 @@ exports.createAdmin = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle : "Welcome To " + companyData.name.toUpperCase(),
+      pageTitle: "Welcome To " + companyData.name.toUpperCase(),
       header,
       body,
-      footer
+      footer,
     };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
       if (err) {
         functions.logger.error(err);
       } else {
-        let callBack =  function (err1, info) {
+        let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
           } else {
             functions.logger.info(info);
           }
         };
-        sendEmail({
-          to: original.email,
-          subject: "Welcome To " + companyData.name.toUpperCase(),
-          html,
-        }, callBack);
+        sendEmail(
+          {
+            to: original.email,
+            subject: "Welcome To " + companyData.name.toUpperCase(),
+            html,
+          },
+          callBack
+        );
       }
     });
     // Send Welcome Email Ends
@@ -473,19 +525,19 @@ exports.createDriver = functions.database
     }
 
     await admin
-    .database()
-    .ref("driver-wallets/" + key)
-    .set({
-      balance: 0,
-      isKYC: false,
-    });
+      .database()
+      .ref("driver-wallets/" + key)
+      .set({
+        balance: 0,
+        isKYC: false,
+      });
     await admin
-    .database()
-    .ref("driver-push-notifications/" + key)
-    .set({
-      isPushEnabled: true,
-    });
-  
+      .database()
+      .ref("driver-push-notifications/" + key)
+      .set({
+        isPushEnabled: true,
+      });
+
     // Send Registration Mail
     const companyData = (
       await admin.database().ref("company-details").once("value")
@@ -495,16 +547,34 @@ exports.createDriver = functions.database
       await admin.database().ref("email-templates/header").once("value")
     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
     let emailBody = (
       await admin.database().ref("email-templates/welcome").once("value")
-      ).val();
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Welcome Driver : " + original.name.toUpperCase());
-    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+    ).val();
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{title}", "g"),
+      "Welcome Driver : " + original.name.toUpperCase()
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{content}", "g"),
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{companyWeb}", "g"),
+      "https://wrapspeedtaxi.com/"
+    );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -514,31 +584,31 @@ exports.createDriver = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle : "Welcome To " + companyData.name.toUpperCase(),
+      pageTitle: "Welcome To " + companyData.name.toUpperCase(),
       header,
       body,
-      footer
+      footer,
     };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
       if (err) {
         functions.logger.error(err);
       } else {
-        let callBack =  function (err1, info) {
+        let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
           } else {
             functions.logger.info(info);
           }
         };
-        sendEmail({
-          to: original.email,
-          subject: "Welcome To " + companyData.name.toUpperCase(),
-          html,
-        }, callBack);
+        sendEmail(
+          {
+            to: original.email,
+            subject: "Welcome To " + companyData.name.toUpperCase(),
+            html,
+          },
+          callBack
+        );
       }
     });
     // Send Registration Mail Ends
@@ -660,7 +730,7 @@ exports.createPassenger = functions.database
       .set({
         isDonateAdmin: false,
       });
-    
+
     // Send Welcome Email
     const companyData = (
       await admin.database().ref("company-details").once("value")
@@ -670,16 +740,34 @@ exports.createPassenger = functions.database
       await admin.database().ref("email-templates/header").once("value")
     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
     let emailBody = (
       await admin.database().ref("email-templates/welcome").once("value")
-      ).val();
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Welcome Rider : " + original.name.toUpperCase());
-    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+    ).val();
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{title}", "g"),
+      "Welcome Rider : " + original.name.toUpperCase()
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{content}", "g"),
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{companyWeb}", "g"),
+      "https://wrapspeedtaxi.com/"
+    );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -689,31 +777,31 @@ exports.createPassenger = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle : "Welcome To " + companyData.name.toUpperCase(),
+      pageTitle: "Welcome To " + companyData.name.toUpperCase(),
       header,
       body,
-      footer
+      footer,
     };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
       if (err) {
         functions.logger.error(err);
       } else {
-        let callBack =  function (err1, info) {
+        let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
           } else {
             functions.logger.info(info);
           }
         };
-        sendEmail({
-          to: original.email,
-          subject: "Welcome To " + companyData.name.toUpperCase(),
-          html,
-        }, callBack);
+        sendEmail(
+          {
+            to: original.email,
+            subject: "Welcome To " + companyData.name.toUpperCase(),
+            html,
+          },
+          callBack
+        );
       }
     });
     // Send Welcome Email Ends
@@ -764,517 +852,606 @@ exports.updatePassenger = functions.database
     }
   });
 
-exports.makeReport = functions.database
-  .ref("/trips/{tripId}")
-  .onWrite(function (change, context) {
-    if (!change.before.val()) {
-      return false;
-    }
+// exports.tripCreateTrigger = functions.database
+//   .ref("/trips/{tripId}")
+//   .onCreate(async function (snapshot, context) {
+//     const key = context.params.tripId;
+//     const original = snapshot.val();
+//     const driverId = original.driverId;
+//     const passengerId = original.passengerId;
 
-    const original = change.after.val();
-    const oldStatus = change.before.child("status").val();
-    const tripId = context.params.tripId;
+//     const driver = (
+//       await admin
+//         .database()
+//         .ref("drivers/" + driverId)
+//         .once("value")
+//     ).val();
+//     const driverNotification = (
+//       await admin
+//         .database()
+//         .ref("driver-push-notifications/" + driverId)
+//         .once("value")
+//     ).val();
+//     const passenger = (
+//       await admin
+//         .database()
+//         .ref("passengers/" + passengerId)
+//         .once("value")
+//     ).val();
+//     const passengerNotification = (
+//       await admin
+//         .database()
+//         .ref("passenger-push-notifications/" + passengerId)
+//         .once("value")
+//     ).val();
 
-    if (
-      oldStatus == TRIP_STATUS_WAITING &&
-      original.status == TRIP_STATUS_GOING
-    ) {
-      var fee = parseFloat(original.fee).toFixed(2);
+//     const msgDriver = "Booking Accepted : Trip ID : " + key;
+//     if (driver.isPhoneVerified) {
+//       sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
+//     }
+//     if (driverNotification.isPushEnabled) {
+//       sendMessage(
+//         driverNotification.pushToken,
+//         "Booking Accepted",
+//         "Driver Notification : " + msgDriver
+//       );
+//     }
 
-      // process payment
-      if (original.paymentMethod == PAYMENT_METHOD_CARD) {
-        // update driver balance
-        admin
-          .database()
-          .ref("driver-wallets/" + original.driverId + "/balance")
-          .once("value")
-          .then(function (snapshot) {
-            if (snapshot != null && snapshot != undefined && snapshot != NaN) {
-              var snapshotVal = snapshot.val() ? parseFloat(snapshot.val()) : 0;
-              var total =
-                parseFloat(snapshotVal) + parseFloat(original.commission);
-              var tmptotal = parseFloat(total.toFixed(2));
-              admin
-                .database()
-                .ref("driver-wallets/" + original.driverId + "/balance")
-                .set(tmptotal);
-            }
-          });
+//     const msgPassenger = "Booking Accepted By Driver : Trip ID : " + key;
+//     const msg1Passenger = "OTP For Ride : " + key + " Is " + original.otp;
+//     if (passenger.isPhoneVerified) {
+//       sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msgPassenger);
+//       sendSMS("+91" + passenger.phoneNumber, msg1Passenger);
+//     }
+//     if (passengerNotification && passengerNotification.isPushEnabled) {
+//       sendMessage(
+//         passengerNotification.pushToken,
+//         "Booking Accepted",
+//         "Passenger Notification : " + msgPassenger
+//       );
+//     }
 
-        
-      }
-    }
+//     // Send Ride Accepted Email
+//     const companyData = (
+//       await admin.database().ref("company-details").once("value")
+//     ).val();
 
-    // Apply Rating After Trip completion
+//     const vehicleType = (
+//       await admin
+//         .database()
+//         .ref("fleets/" + original.vehicleType)
+//         .once("value")
+//     ).val();
 
-    if (
-      original.status == TRIP_STATUS_FINISHED &&
-      oldStatus == TRIP_STATUS_GOING
-    ) {
-      admin
-        .database()
-        .ref("/trips")
-        .orderByChild("driverId")
-        .equalTo(original.driverId)
-        .once("value", function (snap) {
-          var stars = 0;
-          var count = 0;
-          if (snap != null) {
-            snap.forEach(function (trip) {
-              if (
-                trip.val().passengerRating &&
-                trip.val().passengerRating.rating != null
-              ) {
-                stars += parseInt(trip.val().passengerRating.rating);
-                count++;
-              }
-            });
-            var rating = stars / count;
-            console.log("Rating:" + rating);
+//     let emailHeader = (
+//       await admin.database().ref("email-templates/header").once("value")
+//     ).val();
 
-            if (!isNaN(rating)) {
-              admin
-                .database()
-                .ref("/drivers/" + original.driverId)
-                .update({ rating: rating.toFixed(1) });
-            } else {
-              admin
-                .database()
-                .ref("/drivers/" + original.driverId)
-                .update({ rating: 0 });
-            }
-          }
-        });
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{date}", "g"),
+//       moment(original.departDate).format("Do MMM YYYY hh:mm A")
+//     );
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{companyLogo}", "g"),
+//       companyData.logo
+//     );
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{companyName}", "g"),
+//       companyData.name.toUpperCase()
+//     );
 
-      return true;
-    } else {
-      return false;
-    }
-  });
+//     let emailBody = (
+//       await admin.database().ref("email-templates/ride-offer").once("value")
+//     ).val();
 
-exports.tripCreateTrigger = functions.database
-  .ref("/trips/{tripId}")
-  .onCreate(async function (snapshot, context) {
-    const key = context.params.tripId;
-    const original = snapshot.val();
-    const driverId = original.driverId;
-    const passengerId = original.passengerId;
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{title}", "g"),
+//       "Ride Accepted"
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{routeMap}", "g"),
+//       "https://wrapspeedtaxi.com/public/email_images/map.png"
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{driverName}", "g"),
+//       driver.name
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{driverPic}", "g"),
+//       driver.profilePic ? driver.profilePic : companyData.logo
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{fleetType}", "g"),
+//       vehicleType.name
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{fleetDetail}", "g"),
+//       driver.brand + " - " + driver.model
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{fromAddress}", "g"),
+//       original.origin.address
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{toAddress}", "g"),
+//       original.destination.address
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{companyWeb}", "g"),
+//       "https://wrapspeedtaxi.com/"
+//     );
 
-    const driver = (await admin.database().ref("drivers/" + driverId).once("value")).val();
-    const driverNotification = (await admin.database().ref("driver-push-notifications/" + driverId).once("value")).val();
-    const passenger = (await admin.database().ref("passengers/" + passengerId).once("value")).val();
-    const passengerNotification = (await admin.database().ref("passenger-push-notifications/" + passengerId).once("value")).val();
+//     let emailFooter = (
+//       await admin.database().ref("email-templates/footer").once("value")
+//     ).val();
 
-    const msgDriver = "Booking Accepted : Trip ID : " + key;
-    if (driver.isPhoneVerified) {
-      sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
-    }
-    if (driverNotification.isPushEnabled) {
-      sendMessage(
-        driverNotification.pushToken,
-        "Booking Accepted",
-        "Driver Notification : " + msgDriver
-      );
-    }
+//     let header = ejs.render(emailHeader.template);
+//     let body = ejs.render(emailBody.template);
+//     let footer = ejs.render(emailFooter.template);
 
-    const msgPassenger = "Booking Accepted By Driver : Trip ID : " + key;
-    const msg1Passenger = "OTP For Ride : " + key + " Is " + original.otp;
-    if (passenger.isPhoneVerified) {
-      sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msgPassenger);
-      sendSMS("+91" + passenger.phoneNumber, msg1Passenger);
-    }
-    if (passengerNotification && passengerNotification.isPushEnabled) {
-      sendMessage(
-        passengerNotification.pushToken,
-        "Booking Accepted",
-        "Passenger Notification : " + msgPassenger
-      );
-    }
+//     let emailData = {
+//       pageTitle: "Ride Accepted",
+//       header,
+//       body,
+//       footer,
+//     };
 
-    // Send Ride Accepted Email
-    const companyData = (
-      await admin.database().ref("company-details").once("value")
-    ).val();
+//     ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+//       if (err) {
+//         functions.logger.error(err);
+//       } else {
+//         let callBack = function (err1, info) {
+//           if (err1) {
+//             functions.logger.error(err1);
+//           } else {
+//             functions.logger.info(info);
+//           }
+//         };
+//         sendEmail(
+//           {
+//             to: passenger.email,
+//             bcc: driver.email,
+//             subject: "Ride Accepted",
+//             html,
+//           },
+//           callBack
+//         );
+//       }
+//     });
+//     // Send Ride Accepted Email Ends
+//   });
 
-    const vehicleType = (
-      await admin.database().ref("fleets/" + original.vehicleType).once("value")
-    ).val();
+// exports.tripUpdateTrigger = functions.database
+//   .ref("/trips/{tripId}")
+//   .onUpdate(async function (snapshot, context) {
+//     const key = context.params.tripId;
+//     const before = snapshot.before.val();
+//     const after = snapshot.after.val();
+//     const driverId = after.driverId;
+//     const passengerId = after.passengerId;
 
-    let emailHeader = (
-      await admin.database().ref("email-templates/header").once("value")
-    ).val();
+//     const driver = (
+//       await admin
+//         .database()
+//         .ref("drivers/" + driverId)
+//         .once("value")
+//     ).val();
+//     const driverNotification = (
+//       await admin
+//         .database()
+//         .ref("driver-push-notifications/" + driverId)
+//         .once("value")
+//     ).val();
+//     const passenger = (
+//       await admin
+//         .database()
+//         .ref("passengers/" + passengerId)
+//         .once("value")
+//     ).val();
+//     const passengerNotification = (
+//       await admin
+//         .database()
+//         .ref("passenger-push-notifications/" + passengerId)
+//         .once("value")
+//     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment(original.departDate).format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
-    let emailBody = (
-      await admin.database().ref("email-templates/ride-offer").once("value")
-    ).val();
+//     if (after.status == TRIP_STATUS_WAITING) {
+//       const msg = "Pick Up Available : Trip ID : " + key;
+//       if (driver.isPhoneVerified) {
+//         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+//       }
+//       if (driverNotification && driverNotification.isPushEnabled) {
+//         sendMessage(
+//           driverNotification.pushToken,
+//           "Pick Up Available",
+//           "Driver Notification : " + msg
+//         );
+//       }
+//       const msg1 = "Driver To Be Arrived Shortly : Trip ID : " + key;
+//       if (passenger.isPhoneVerified) {
+//         sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
+//       }
+//       if (passengerNotification && passengerNotification.isPushEnabled) {
+//         sendMessage(
+//           passengerNotification.pushToken,
+//           "Driver To Be Arrived Shortly",
+//           "Passenger Notification : " + msg1
+//         );
+//       }
+//     } else if (
+//       after.status == TRIP_STATUS_GOING &&
+//       before.status == TRIP_STATUS_WAITING
+//     ) {
+//       const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
+//       if (driver.isPhoneVerified) {
+//         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+//       }
+//       if (driverNotification && driverNotification.isPushEnabled) {
+//         sendMessage(
+//           driverNotification.pushToken,
+//           "Destination To Be Arrived Soon",
+//           "Driver Notification : " + msg
+//         );
+//       }
+//       const msg1 = "Destination To Be Arrived Soon : Trip ID : " + key;
+//       if (passenger.isPhoneVerified) {
+//         sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
+//       }
+//       if (passengerNotification && passengerNotification.isPushEnabled) {
+//         sendMessage(
+//           passengerNotification.pushToken,
+//           "Destination To Be Arrived Soon",
+//           "Passenger Notification : " + msg1
+//         );
+//       }
+//     } else if (
+//       after.status == TRIP_STATUS_FINISHED &&
+//       before.status == TRIP_STATUS_GOING
+//     ) {
+//       admin
+//         .database()
+//         .ref("/trips")
+//         .orderByChild("driverId")
+//         .equalTo(after.driverId)
+//         .once("value", function (snap) {
+//           var stars = 0;
+//           var count = 0;
+//           if (snap != null) {
+//             snap.forEach(function (trip) {
+//               if (
+//                 trip.val().passengerRating &&
+//                 trip.val().passengerRating.rating != null
+//               ) {
+//                 stars += parseInt(trip.val().passengerRating.rating);
+//                 count++;
+//               }
+//             });
+//             var rating = stars / count;
+//             console.log("Rating:" + rating);
 
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Ride Accepted");
-    emailBody.template = emailBody.template.replace(new RegExp("{routeMap}", 'g'), "https://wrapspeedtaxi.com/public/email_images/map.png"); 
-    emailBody.template = emailBody.template.replace(new RegExp("{driverName}", 'g'), driver.name);
-    emailBody.template = emailBody.template.replace(new RegExp("{driverPic}", 'g'), driver.profilePic
-    ? driver.profilePic : companyData.logo); 
-    emailBody.template = emailBody.template.replace(new RegExp("{fleetType}", 'g'), vehicleType.name);
-    emailBody.template = emailBody.template.replace(new RegExp("{fleetDetail}", 'g'), driver.brand + " - " + driver.model);
-    emailBody.template = emailBody.template.replace(new RegExp("{fromAddress}", 'g'), original.origin.address);
-    emailBody.template = emailBody.template.replace(new RegExp("{toAddress}", 'g'), original.destination.address);
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+//             if (!isNaN(rating)) {
+//               admin
+//                 .database()
+//                 .ref("/drivers/" + original.driverId)
+//                 .update({ rating: rating.toFixed(1) });
+//             } else {
+//               admin
+//                 .database()
+//                 .ref("/drivers/" + original.driverId)
+//                 .update({ rating: 0 });
+//             }
+//           }
+//         });
 
-    let emailFooter = (
-      await admin.database().ref("email-templates/footer").once("value")
-    ).val();
+//       const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
 
-    let header = ejs.render(emailHeader.template);
-    let body = ejs.render(emailBody.template);
-    let footer = ejs.render(emailFooter.template);
+//       if (driver.isPhoneVerified) {
+//         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+//       }
+//       if (driverNotification && driverNotification.isPushEnabled) {
+//         sendMessage(
+//           driverNotification.pushToken,
+//           "Destination Arrived",
+//           "Driver Notification : " + msg
+//         );
+//       }
 
-    let emailData = {
-      pageTitle : "Ride Accepted",
-      header,
-      body,
-      footer
-    };
+//       if (passenger.isPhoneVerified) {
+//         sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
+//       }
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
-      if (err) {
-        functions.logger.error(err);
-      } else {
-        let callBack =  function (err1, info) {
-          if (err1) {
-            functions.logger.error(err1);
-          } else {
-            functions.logger.info(info);
-          }
-        };
-        sendEmail({
-          to: passenger.email,
-          bcc: driver.email,
-          subject: "Ride Accepted",
-          html,
-        }, callBack);
-      }
-    });
-    // Send Ride Accepted Email Ends
-  });
+//       if (passengerNotification && passengerNotification.isPushEnabled) {
+//         sendMessage(
+//           passengerNotification.pushToken,
+//           "Destination Arrived",
+//           "Passenger Notification : " + msg
+//         );
+//       }
 
-exports.tripUpdateTrigger = functions.database
-  .ref("/trips/{tripId}")
-  .onUpdate(async function (snapshot, context) {
-    const key = context.params.tripId;
-    const before = snapshot.before.val();
-    const after = snapshot.after.val();
-    const driverId = after.driverId;
-    const passengerId = after.passengerId;
+//       const businessData = (
+//         await admin.database().ref("business-management").once("value")
+//       ).val();
 
-    const driver = (await admin.database().ref("drivers/" + driverId).once("value")).val();
-    const driverNotification = (await admin.database().ref("driver-push-notifications/" + driverId).once("value")).val();
-    const passenger = (await admin.database().ref("passengers/" + passengerId).once("value")).val();
-    const passengerNotification = (await admin.database().ref("passenger-push-notifications/" + passengerId).once("value")).val();
+//       const companyData = (
+//         await admin.database().ref("company-details").once("value")
+//       ).val();
 
-    if (after.status == TRIP_STATUS_WAITING) {
-      const msg = "Pick Up Available : Trip ID : " + key;
-      if (driver.isPhoneVerified) {
-        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-      }
-      if (driverNotification && driverNotification.isPushEnabled) {
-        sendMessage(
-          driverNotification.pushToken,
-          "Pick Up Available",
-          "Driver Notification : " + msg
-        );
-      }
-      const msg1 = "Driver To Be Arrived Shortly : Trip ID : " + key;
-      if (passenger.isPhoneVerified) {
-        sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
-      }
-      if (passengerNotification && passengerNotification.isPushEnabled) {
-        sendMessage(
-          passengerNotification.pushToken,
-          "Driver To Be Arrived Shortly",
-          "Passenger Notification : " + msg1
-        );
-      }
-    } else if (
-      after.status == TRIP_STATUS_GOING &&
-      before.status == TRIP_STATUS_WAITING
-    ) {
-      const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
-      if (driver.isPhoneVerified) {
-        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-      }
-      if (driverNotification && driverNotification.isPushEnabled) {
-        sendMessage(
-          driverNotification.pushToken,
-          "Destination To Be Arrived Soon",
-          "Driver Notification : " + msg
-        );
-      }
-      const msg1 = "Destination To Be Arrived Soon : Trip ID : " + key;
-      if (passenger.isPhoneVerified) {
-        sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
-      }
-      if (passengerNotification && passengerNotification.isPushEnabled) {
-        sendMessage(
-          passengerNotification.pushToken,
-          "Destination To Be Arrived Soon",
-          "Passenger Notification : " + msg1
-        );
-      }
-    } else if (
-      after.status == TRIP_STATUS_FINISHED &&
-      before.status == TRIP_STATUS_GOING
-    ) {
-      const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
+//       const vehicleType = (
+//         await admin
+//           .database()
+//           .ref("fleets/" + after.vehicleType)
+//           .once("value")
+//       ).val();
 
-      if (driver.isPhoneVerified) {
-        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-      }
-      if (driverNotification && driverNotification.isPushEnabled) {
-        sendMessage(
-          driverNotification.pushToken,
-          "Destination Arrived",
-          "Driver Notification : " + msg
-        );
-      }
+//       let splitPayments = [];
+//       let amount = after.fareDetails.finalFare;
+//       if (after.waitingCharges) amount += after.waitingCharges;
+//       let finalFare = amount;
+//       const splits = (
+//         await admin
+//           .database()
+//           .ref("trip-split-payment/" + key)
+//           .once("value")
+//       ).val();
+//       if (splits != null) {
+//         for (const [key, value] of Object.entries(splits)) {
+//           splitPayments.push(value);
+//         }
+//         splitPayments = splitPayments.reverse();
+//       }
 
-      if (passenger.isPhoneVerified) {
-        sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
-      }
+//       amount = amount / (splitPayments.length + 1);
 
-      if (passengerNotification && passengerNotification.isPushEnabled) {
-        sendMessage(
-          passengerNotification.pushToken,
-          "Destination Arrived",
-          "Passenger Notification : " + msg
-        );
-      }
+//       let emailData = {
+//         companyWeb: "https://wrapspeedtaxi.com",
+//         title: "Invoice For Trip : #" + key,
+//         tripDate: moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
+//         companyLogo: companyData.logo,
+//         companyName: companyData.name,
+//         currency: businessData.currency,
+//         finalFare: finalFare.toFixed(2),
+//         tripId: key,
+//         routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
+//         riderName: passenger.name,
+//         riderNumber: passenger.phoneNumber,
+//         driverName: driver.name,
+//         driverProfilePic: driver.profilePic
+//           ? driver.profilePic
+//           : companyData.logo,
+//         fleetType: vehicleType.name,
+//         fleetDetail: driver.brand + " - " + driver.model,
+//         fromTime: moment(new Date(after.pickedUpAt)).format("hh:mm A"),
+//         fromAddress: after.origin.address,
+//         endTime: moment(new Date(after.droppedOffAt)).format("hh:mm A"),
+//         toAddress: after.destination.address,
+//         baseFare: after.fareDetails.baseFare,
+//         taxFare: after.fareDetails.tax,
+//         paidBy: after.paymentMethod,
+//         paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+//         splittedAmount: amount.toFixed(2),
+//         splitAccounts: splitPayments,
+//       };
 
-      const businessData = (
-        await admin.database().ref("business-management").once("value")
-      ).val();
+//       ejs.renderFile(__dirname + "/invoice.ejs", emailData, async function (
+//         err,
+//         html
+//       ) {
+//         if (err) {
+//           functions.logger.error(err);
+//         } else {
+//           let callBack = function (err1, info) {
+//             if (err1) {
+//               functions.logger.error(err1);
+//               mailer.close();
+//             } else {
+//               functions.logger.info(info);
+//               mailer.close();
+//             }
+//           };
+//           sendEmail(
+//             {
+//               to: passenger.email,
+//               bcc: driver.email,
+//               subject: "Invoice For Trip : #" + key,
+//               html,
+//             },
+//             callBack
+//           );
+//         }
+//       });
 
-      const companyData = (
-        await admin.database().ref("company-details").once("value")
-      ).val();
+//       if (after.paymentMethod != "cash") {
+//         let walletDetails = (
+//           await admin
+//             .database()
+//             .ref("driver-wallets/" + driverId)
+//             .once("value")
+//         ).val();
+//         let balance = 0;
+//         if (walletDetails && walletDetails.balance) {
+//           balance = walletDetails.balance;
+//         }
+//         balance += after.fareDetails.commission;
+//         admin
+//           .database()
+//           .ref("driver-wallets/" + driverId)
+//           .update({ balance: parseFloat(balance.toFixed(2)) });
+//         admin
+//           .database()
+//           .ref("payment-transactions/wallet")
+//           .push({
+//             amount: parseFloat(after.fareDetails.commission.toFixed(2)),
+//             description: "Cashless Ride Completed",
+//             driver_id: driverId,
+//             driver_email: driver.email,
+//             type: 1,
+//             created: Date.now(),
+//           });
+//       } else {
+//         let walletDetails = (
+//           await admin
+//             .database()
+//             .ref("driver-wallets/" + driverId)
+//             .once("value")
+//         ).val();
+//         let balance = 0;
+//         if (walletDetails && walletDetails.balance) {
+//           balance = walletDetails.balance;
+//         }
 
-      const vehicleType = (
-        await admin
-          .database()
-          .ref("fleets/" + after.vehicleType)
-          .once("value")
-      ).val();
+//         balance -= finalFare - after.fareDetails.commission;
 
-      let splitPayments = [];
-      let amount  = after.fareDetails.finalFare;
-      if(after.waitingCharges) amount += after.waitingCharges;
-      let finalFare = amount;
-      const splits = (
-        await admin
-          .database()
-          .ref("trip-split-payment/" + key)
-          .once("value")
-      ).val();
-      if (splits != null) {
-        for (const [key, value] of Object.entries(splits)) {
-          splitPayments.push(value);
-        }
-        splitPayments = splitPayments.reverse();
-      } 
-      
-      amount = amount / (splitPayments.length + 1)
+//         admin
+//           .database()
+//           .ref("driver-wallets/" + driverId)
+//           .update({ balance: parseFloat(balance.toFixed(2)) });
+//         admin
+//           .database()
+//           .ref("payment-transactions/wallet")
+//           .push({
+//             amount: parseFloat(
+//               (finalFare - after.fareDetails.commission).toFixed(2)
+//             ),
+//             description: "Cash Ride Completed",
+//             driver_id: driverId,
+//             driver_email: driver.email,
+//             type: 0,
+//             created: Date.now(),
+//           });
+//       }
+//     } else if (after.status == TRIP_STATUS_CANCELED) {
+//       const msg = "The Trip Got Canceled. Trip ID : " + key;
+//       if (driver.isPhoneVerified) {
+//         sendSMS("+91" + driver.phoneNumber, "Driver SMS" + msg);
+//       }
+//       if (driverNotification && driverNotification.isPushEnabled) {
+//         sendMessage(
+//           driverNotification.pushToken,
+//           "Trip Canceled",
+//           "Driver Notification" + msg
+//         );
+//       }
+//       if (passenger.isPhoneVerified) {
+//         sendSMS("+91" + passenger.phoneNumber, "Passenger SMS" + msg);
+//       }
+//       if (passengerNotification && passengerNotification.isPushEnabled) {
+//         sendMessage(
+//           passengerNotification.pushToken,
+//           "Trip Canceled",
+//           "Passenger Notification" + msg
+//         );
+//       }
 
-      let emailData = {
-        companyWeb: "https://wrapspeedtaxi.com",
-        title: "Invoice For Trip : #" + key,
-        tripDate: moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
-        companyLogo: companyData.logo,
-        companyName: companyData.name,
-        currency: businessData.currency,
-        finalFare: finalFare.toFixed(2),
-        tripId: key,
-        routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
-        riderName: passenger.name,
-        riderNumber: passenger.phoneNumber,
-        driverName: driver.name,
-        driverProfilePic: driver.profilePic
-          ? driver.profilePic
-          : companyData.logo,
-        fleetType: vehicleType.name,
-        fleetDetail: driver.brand + " - " + driver.model,
-        fromTime: moment(new Date(after.pickedUpAt)).format("hh:mm A"),
-        fromAddress: after.origin.address,
-        endTime: moment(new Date(after.droppedOffAt)).format("hh:mm A"),
-        toAddress: after.destination.address,
-        baseFare: after.fareDetails.baseFare,
-        taxFare: after.fareDetails.tax,
-        paidBy: after.paymentMethod,
-        paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
-        splittedAmount : amount.toFixed(2),
-        splitAccounts : splitPayments
-      };
+//       // Cancelled Trip Mail
+//       const companyData = (
+//         await admin.database().ref("company-details").once("value")
+//       ).val();
 
-      ejs.renderFile(__dirname + "/invoice.ejs", emailData, async function (
-        err,
-        html
-      ) {
-        if (err) {
-          functions.logger.error(err);
-        } else {
-          let callBack = function (err1, info) {
-            if (err1) {
-              functions.logger.error(err1);
-              mailer.close();
-            } else {
-              functions.logger.info(info);
-              mailer.close();
-            }
-          }
-          sendEmail({
-            to : passenger.email, 
-            bcc : driver.email, 
-            subject : "Invoice For Trip : #" + key,
-            html
-          }, callBack);
-        }
-      });
-      
-      if(after.paymentMethod != 'cash') {
-        let walletDetails = (await admin.database().ref('driver-wallets/' + driverId).once("value")).val();
-        let balance = 0;
-        if(walletDetails && walletDetails.balance) {
-          balance = walletDetails.balance;
-        }
-        balance += after.fareDetails.commission;
-        admin.database().ref('driver-wallets/' + driverId).update({balance : parseFloat(balance.toFixed(2))});
-        admin.database().ref('payment-transactions/wallet').push({
-          amount : parseFloat(after.fareDetails.commission.toFixed(2)),
-          description : "Cashless Ride Completed",
-          driver_id : driverId,
-          driver_email : driver.email,
-          type : 1,
-          created : Date.now()
-        })
-      } else {
-        let walletDetails = (await admin.database().ref('driver-wallets/' + driverId).once("value")).val();
-        let balance = 0;
-        if(walletDetails && walletDetails.balance) {
-          balance = walletDetails.balance;
-        }
+//       const vehicleType = (
+//         await admin
+//           .database()
+//           .ref("fleets/" + after.vehicleType)
+//           .once("value")
+//       ).val();
 
-        balance -= (finalFare - after.fareDetails.commission);
+//       let emailHeader = (
+//         await admin.database().ref("email-templates/header").once("value")
+//       ).val();
 
-        admin.database().ref('driver-wallets/' + driverId).update({balance : parseFloat(balance.toFixed(2))});
-        admin.database().ref('payment-transactions/wallet').push({
-          amount : parseFloat((finalFare - after.fareDetails.commission).toFixed(2)),
-          description : "Cash Ride Completed",
-          driver_id : driverId,
-          driver_email : driver.email,
-          type : 0,
-          created : Date.now()
-        })
-      }
+//       emailHeader.template = emailHeader.template.replace(
+//         new RegExp("{date}", "g"),
+//         moment(after.departDate).format("Do MMM YYYY hh:mm A")
+//       );
+//       emailHeader.template = emailHeader.template.replace(
+//         new RegExp("{companyLogo}", "g"),
+//         companyData.logo
+//       );
+//       emailHeader.template = emailHeader.template.replace(
+//         new RegExp("{companyName}", "g"),
+//         companyData.name.toUpperCase()
+//       );
 
-    } else if (after.status == TRIP_STATUS_CANCELED) {
-      const msg = "The Trip Got Canceled. Trip ID : " + key;
-      if (driver.isPhoneVerified) {
-        sendSMS("+91" + driver.phoneNumber, "Driver SMS" + msg);
-      }
-      if (driverNotification && driverNotification.isPushEnabled) {
-        sendMessage(
-          driverNotification.pushToken,
-          "Trip Canceled",
-          "Driver Notification" + msg
-        );
-      }
-      if (passenger.isPhoneVerified) {
-        sendSMS("+91" + passenger.phoneNumber, "Passenger SMS" + msg);
-      }
-      if (passengerNotification && passengerNotification.isPushEnabled) {
-        sendMessage(
-          passengerNotification.pushToken,
-          "Trip Canceled",
-          "Passenger Notification" + msg
-        );
-      }
+//       let emailBody = (
+//         await admin.database().ref("email-templates/ride-offer").once("value")
+//       ).val();
 
-      // Cancelled Trip Mail
-      const companyData = (
-        await admin.database().ref("company-details").once("value")
-      ).val();
-  
-      const vehicleType = (
-        await admin.database().ref("fleets/" + after.vehicleType).once("value")
-      ).val();
-  
-      let emailHeader = (
-        await admin.database().ref("email-templates/header").once("value")
-      ).val();
-  
-      emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment(after.departDate).format("Do MMM YYYY hh:mm A"));
-      emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-      emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-      
-      let emailBody = (
-        await admin.database().ref("email-templates/ride-offer").once("value")
-      ).val();
-  
-      emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Ride Cancelled");
-      emailBody.template = emailBody.template.replace(new RegExp("{routeMap}", 'g'), "https://wrapspeedtaxi.com/public/email_images/map.png"); 
-      emailBody.template = emailBody.template.replace(new RegExp("{driverName}", 'g'), driver.name);
-      emailBody.template = emailBody.template.replace(new RegExp("{driverPic}", 'g'), driver.profilePic
-      ? driver.profilePic : companyData.logo); 
-      emailBody.template = emailBody.template.replace(new RegExp("{fleetType}", 'g'), vehicleType.name);
-      emailBody.template = emailBody.template.replace(new RegExp("{fleetDetail}", 'g'), driver.brand + " - " + driver.model);
-      emailBody.template = emailBody.template.replace(new RegExp("{fromAddress}", 'g'), after.origin.address);
-      emailBody.template = emailBody.template.replace(new RegExp("{toAddress}", 'g'), after.destination.address);
-      emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
-  
-      let emailFooter = (
-        await admin.database().ref("email-templates/footer").once("value")
-      ).val();
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{title}", "g"),
+//         "Ride Cancelled"
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{routeMap}", "g"),
+//         "https://wrapspeedtaxi.com/public/email_images/map.png"
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{driverName}", "g"),
+//         driver.name
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{driverPic}", "g"),
+//         driver.profilePic ? driver.profilePic : companyData.logo
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{fleetType}", "g"),
+//         vehicleType.name
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{fleetDetail}", "g"),
+//         driver.brand + " - " + driver.model
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{fromAddress}", "g"),
+//         after.origin.address
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{toAddress}", "g"),
+//         after.destination.address
+//       );
+//       emailBody.template = emailBody.template.replace(
+//         new RegExp("{companyWeb}", "g"),
+//         "https://wrapspeedtaxi.com/"
+//       );
 
-      let header = ejs.render(emailHeader.template);
-      let body = ejs.render(emailBody.template);
-      let footer = ejs.render(emailFooter.template);
-  
-      let emailData = {
-        pageTitle : "Ride Cancelled",
-        header,
-        body,
-        footer
-      };
-  
-      ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-        err,
-        html
-      ) {
-        if (err) {
-          functions.logger.error(err);
-        } else {
-          let callBack =  function (err1, info) {
-            if (err1) {
-              functions.logger.error(err1);
-            } else {
-              functions.logger.info(info);
-            }
-          };
-          sendEmail({
-            to: passenger.email,
-            bcc: driver.email,
-            subject: "Ride Cancelled",
-            html,
-          }, callBack);
-        }
-      });
-      // Cancelled Trip Mail Ends
-    }
-  });
+//       let emailFooter = (
+//         await admin.database().ref("email-templates/footer").once("value")
+//       ).val();
+
+//       let header = ejs.render(emailHeader.template);
+//       let body = ejs.render(emailBody.template);
+//       let footer = ejs.render(emailFooter.template);
+
+//       let emailData = {
+//         pageTitle: "Ride Cancelled",
+//         header,
+//         body,
+//         footer,
+//       };
+
+//       ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+//         if (err) {
+//           functions.logger.error(err);
+//         } else {
+//           let callBack = function (err1, info) {
+//             if (err1) {
+//               functions.logger.error(err1);
+//             } else {
+//               functions.logger.info(info);
+//             }
+//           };
+//           sendEmail(
+//             {
+//               to: passenger.email,
+//               bcc: driver.email,
+//               subject: "Ride Cancelled",
+//               html,
+//             },
+//             callBack
+//           );
+//         }
+//       });
+//       // Cancelled Trip Mail Ends
+//     }
+//   });
 
 exports.sendSOSMessage = functions.https.onRequest((req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
@@ -1380,7 +1557,7 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
         const businessData = (
           await admin.database().ref("business-management").once("value")
         ).val();
-  
+
         const driverReferrer = (
           await admin
             .database()
@@ -1535,7 +1712,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
     res.set("Access-Control-Max-Age", "3600");
     res.status(204).send("");
   } else {
-    if (req.body.tripId && req.body.type) {
+    if (req.body.tripPassengerId && req.body.type) {
       const businessData = (
         await admin.database().ref("business-management").once("value")
       ).val();
@@ -1547,7 +1724,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
       const tripData = (
         await admin
           .database()
-          .ref("trips/" + req.body.tripId)
+          .ref("trip-passengers/" + req.body.tripPassengerId)
           .once("value")
       ).val();
       if (tripData) {
@@ -1571,16 +1748,16 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
             .ref("drivers/" + tripData.driverId)
             .once("value")
         ).val();
-        
+
         let splitPayments = [];
-        let amount  = tripData.fareDetails.finalFare;
-        if(tripData.waitingCharges) amount += tripData.waitingCharges;
+        let amount = tripData.fareDetails.finalFare;
+        if (tripData.waitingCharges) amount += tripData.waitingCharges;
         let finalFare = amount;
-  
+
         const splits = (
           await admin
             .database()
-            .ref("trip-split-payment/" + req.body.tripId)
+            .ref("trip-split-payment/" + req.body.tripPassengerId)
             .once("value")
         ).val();
         if (splits != null) {
@@ -1588,13 +1765,13 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
             splitPayments.push(value);
           }
           splitPayments = splitPayments.reverse();
-        } 
-        
-        amount = amount / (splitPayments.length + 1)
+        }
+
+        amount = amount / (splitPayments.length + 1);
 
         let emailData = {
           companyWeb: "https://wrapspeedtaxi.com",
-          title: "Invoice For Trip : #" + req.body.tripId,
+          title: "Invoice For Trip : #" + req.body.tripPassengerId,
           tripDate: moment(new Date(tripData.pickedUpAt)).format(
             "Do MMMM YYYY"
           ),
@@ -1602,7 +1779,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           companyName: companyData.name,
           currency: businessData.currency,
           finalFare: finalFare.toFixed(2),
-          tripId: req.body.tripId,
+          tripId: req.body.tripPassengerId,
           routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
           riderName: passengerData.name,
           riderNumber: passengerData.phoneNumber,
@@ -1620,8 +1797,8 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           taxFare: tripData.fareDetails.tax,
           paidBy: tripData.paymentMethod,
           paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
-          splittedAmount : amount.toFixed(2),
-          splitAccounts : splitPayments
+          splittedAmount: amount.toFixed(2),
+          splitAccounts: splitPayments,
         };
         functions.logger.info(emailData);
 
@@ -1651,12 +1828,18 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
                 });
               }
             };
-            sendEmail({
-              to: req.body.type == "passenger" ? passengerData.email : driverData.email,
-              bcc : null,
-              subject : "Invoice For Trip : #" + req.body.tripId,
-              html
-            }, callBack);
+            sendEmail(
+              {
+                to:
+                  req.body.type == "passenger"
+                    ? passengerData.email
+                    : driverData.email,
+                bcc: null,
+                subject: "Invoice For Trip : #" + req.body.tripPassengerId,
+                html,
+              },
+              callBack
+            );
           }
         });
       } else {
@@ -1684,15 +1867,15 @@ exports.scheduledFunction = functions.pubsub
       .once("value", function (snapshot) {
         const schedules = snapshot.val();
         for (const [tripKey, tripData] of Object.entries(schedules)) {
-            const scheduleDate = moment(new Date(tripData.departDate));
-            if (date.isAfter(scheduleDate)) {
-              admin
+          const scheduleDate = moment(new Date(tripData.departDate));
+          if (date.isAfter(scheduleDate)) {
+            admin
               .database()
               .ref("scheduled-trips/" + tripKey)
               .remove()
               .then(() => {});
-            }
           }
+        }
       });
   });
 
@@ -1701,12 +1884,23 @@ exports.complaintCreateTrigger = functions.database
   .onCreate(async function (snapshot, context) {
     const id = context.params.id;
     const original = snapshot.val();
-    let type = original.driverId ? 'drivers' : 'passengers';
+    let type = original.driverId ? "drivers" : "passengers";
     let userId = original.driverId ? original.driverId : original.passengerId;
-    const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
-    const admins = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"))
+    const user = (
+      await admin
+        .database()
+        .ref(type + "/" + userId)
+        .once("value")
+    ).val();
+    const admins = await admin
+      .database()
+      .ref("admins")
+      .orderByChild("role_id")
+      .equalTo("0")
+      .limitToFirst(1)
+      .once("value");
     let adminData = {};
-    for(const [key, value] of Object.entries(admins)) {
+    for (const [key, value] of Object.entries(admins)) {
       adminData = value;
     }
 
@@ -1718,16 +1912,34 @@ exports.complaintCreateTrigger = functions.database
       await admin.database().ref("email-templates/header").once("value")
     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
     let emailBody = (
       await admin.database().ref("email-templates/new-complaint").once("value")
-      ).val();
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint Registered");
-    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+    ).val();
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{title}", "g"),
+      "Complaint Registered"
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{content}", "g"),
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{companyWeb}", "g"),
+      "https://wrapspeedtaxi.com/"
+    );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -1737,32 +1949,32 @@ exports.complaintCreateTrigger = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle : "Complaint Registered",
+      pageTitle: "Complaint Registered",
       header,
       body,
-      footer
+      footer,
     };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
       if (err) {
         functions.logger.error(err);
       } else {
-        let callBack =  function (err1, info) {
+        let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
           } else {
             functions.logger.info(info);
           }
         };
-        sendEmail({
-          to: user.email,
-          bcc : adminData.email,
-          subject: "Complaint Registered",
-          html,
-        }, callBack);
+        sendEmail(
+          {
+            to: user.email,
+            bcc: adminData.email,
+            subject: "Complaint Registered",
+            html,
+          },
+          callBack
+        );
       }
     });
   });
@@ -1773,124 +1985,176 @@ exports.complaintUpdateTrigger = functions.database
     const id = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
-   
-    let type = after.driverId ? 'drivers' : 'passengers';
+
+    let type = after.driverId ? "drivers" : "passengers";
     let userId = after.driverId ? after.driverId : after.passengerId;
-    const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
-    const admins = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"))
+    const user = (
+      await admin
+        .database()
+        .ref(type + "/" + userId)
+        .once("value")
+    ).val();
+    const admins = await admin
+      .database()
+      .ref("admins")
+      .orderByChild("role_id")
+      .equalTo("0")
+      .limitToFirst(1)
+      .once("value");
     let adminData = {};
-    for(const [key, value] of Object.entries(admins)) {
+    for (const [key, value] of Object.entries(admins)) {
       adminData = value;
     }
     const companyData = (
       await admin.database().ref("company-details").once("value")
     ).val();
-    if(after.status == '1' && before.status != '1') {
+    if (after.status == "1" && before.status != "1") {
       let emailHeader = (
         await admin.database().ref("email-templates/header").once("value")
       ).val();
-  
-      emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-      emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-      emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-      
+
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{date}", "g"),
+        moment().format("Do MMM YYYY hh:mm A")
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyLogo}", "g"),
+        companyData.logo
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyName}", "g"),
+        companyData.name.toUpperCase()
+      );
+
       let emailBody = (
-        await admin.database().ref("email-templates/complaint-processing").once("value")
-        ).val();
-      emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint Is Under Processing");
-      emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-      emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+        await admin
+          .database()
+          .ref("email-templates/complaint-processing")
+          .once("value")
+      ).val();
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{title}", "g"),
+        "Complaint Is Under Processing"
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{content}", "g"),
+        "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
       let emailFooter = (
         await admin.database().ref("email-templates/footer").once("value")
       ).val();
-  
+
       let header = ejs.render(emailHeader.template);
       let body = ejs.render(emailBody.template);
       let footer = ejs.render(emailFooter.template);
-  
+
       let emailData = {
-        pageTitle : "Complaint Is Under Processing",
+        pageTitle: "Complaint Is Under Processing",
         header,
         body,
-        footer
+        footer,
       };
-  
-      ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-        err,
-        html
-      ) {
+
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
         if (err) {
           functions.logger.error(err);
         } else {
-          let callBack =  function (err1, info) {
+          let callBack = function (err1, info) {
             if (err1) {
               functions.logger.error(err1);
             } else {
               functions.logger.info(info);
             }
           };
-          sendEmail({
-            to: user.email,
-            bcc : adminData.email,
-            subject: "Complaint Is Under Processing",
-            html,
-          }, callBack);
+          sendEmail(
+            {
+              to: user.email,
+              bcc: adminData.email,
+              subject: "Complaint Is Under Processing",
+              html,
+            },
+            callBack
+          );
         }
       });
-    } else if(after.status == '2' && before.status != '2') {
+    } else if (after.status == "2" && before.status != "2") {
       let emailHeader = (
         await admin.database().ref("email-templates/header").once("value")
       ).val();
-  
-      emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-      emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-      emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-      
+
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{date}", "g"),
+        moment().format("Do MMM YYYY hh:mm A")
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyLogo}", "g"),
+        companyData.logo
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyName}", "g"),
+        companyData.name.toUpperCase()
+      );
+
       let emailBody = (
-        await admin.database().ref("email-templates/complaint-resolved").once("value")
-        ).val();
-      emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "Complaint Is Resolved");
-      emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-      emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
+        await admin
+          .database()
+          .ref("email-templates/complaint-resolved")
+          .once("value")
+      ).val();
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{title}", "g"),
+        "Complaint Is Resolved"
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{content}", "g"),
+        "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
       let emailFooter = (
         await admin.database().ref("email-templates/footer").once("value")
       ).val();
-  
+
       let header = ejs.render(emailHeader.template);
       let body = ejs.render(emailBody.template);
       let footer = ejs.render(emailFooter.template);
-  
+
       let emailData = {
-        pageTitle : "Complaint Is Resolved",
+        pageTitle: "Complaint Is Resolved",
         header,
         body,
-        footer
+        footer,
       };
-  
-      ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-        err,
-        html
-      ) {
+
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
         if (err) {
           functions.logger.error(err);
         } else {
-          let callBack =  function (err1, info) {
+          let callBack = function (err1, info) {
             if (err1) {
               functions.logger.error(err1);
             } else {
               functions.logger.info(info);
             }
           };
-          sendEmail({
-            to: user.email,
-            bcc : adminData.email,
-            subject: "Complaint Is Resolved",
-            html,
-          }, callBack);
+          sendEmail(
+            {
+              to: user.email,
+              bcc: adminData.email,
+              subject: "Complaint Is Resolved",
+              html,
+            },
+            callBack
+          );
         }
       });
     }
-
   });
 
 exports.complaintResponseTrigger = functions.database
@@ -1899,15 +2163,31 @@ exports.complaintResponseTrigger = functions.database
     const id = context.params.id;
     const original = snapshot.val();
     const complaintData = (
-      await admin.database().ref("complaints/" + original.complaintId).once("value")
+      await admin
+        .database()
+        .ref("complaints/" + original.complaintId)
+        .once("value")
     ).val();
-    const type = complaintData.driverId ? 'drivers' : 'passengers';
-    const userId = complaintData.driverId ? complaintData.driverId : complaintData.passengerId;
-    const user = (await admin.database().ref(type + "/" + userId).once("value")).val();
-    const admins = (await admin.database().ref("admins").orderByChild("role_id").equalTo('0').limitToFirst(1).once("value"))
+    const type = complaintData.driverId ? "drivers" : "passengers";
+    const userId = complaintData.driverId
+      ? complaintData.driverId
+      : complaintData.passengerId;
+    const user = (
+      await admin
+        .database()
+        .ref(type + "/" + userId)
+        .once("value")
+    ).val();
+    const admins = await admin
+      .database()
+      .ref("admins")
+      .orderByChild("role_id")
+      .equalTo("0")
+      .limitToFirst(1)
+      .once("value");
     let adminData;
-    
-    for(const [key, value] of Object.entries(admins)) {
+
+    for (const [key, value] of Object.entries(admins)) {
       adminData = value;
     }
 
@@ -1919,17 +2199,38 @@ exports.complaintResponseTrigger = functions.database
       await admin.database().ref("email-templates/header").once("value")
     ).val();
 
-    emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment().format("Do MMM YYYY hh:mm A"));
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-    emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-    
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
     let emailBody = (
-      await admin.database().ref("email-templates/new-complaint-response").once("value")
-      ).val();
-    emailBody.template = emailBody.template.replace(new RegExp("{title}", 'g'), "New Complaint Reply");
-    emailBody.template = emailBody.template.replace(new RegExp("{content}", 'g'), "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
-    
+      await admin
+        .database()
+        .ref("email-templates/new-complaint-response")
+        .once("value")
+    ).val();
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{title}", "g"),
+      "New Complaint Reply"
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{content}", "g"),
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{companyWeb}", "g"),
+      "https://wrapspeedtaxi.com/"
+    );
+
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -1939,49 +2240,391 @@ exports.complaintResponseTrigger = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle : "New Complaint Reply",
+      pageTitle: "New Complaint Reply",
       header,
       body,
-      footer
+      footer,
     };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-      err,
-      html
-    ) {
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
       if (err) {
         functions.logger.error(err);
       } else {
-        let callBack =  function (err1, info) {
+        let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
           } else {
             functions.logger.info(info);
           }
         };
-        sendEmail({
-          to: original.adminId ? user.email : 'patrickphp3@gmail.com',
-          subject: "New Complaint Reply",
-          html,
-        }, callBack);
+        sendEmail(
+          {
+            to: original.adminId ? user.email : "patrickphp3@gmail.com",
+            subject: "New Complaint Reply",
+            html,
+          },
+          callBack
+        );
       }
     });
-    
   });
 
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
-exports.generateMailDev = functions.https.onRequest(async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Credentials", "true"); // vital
-  if (req.method === "OPTIONS") {
-    // Send response to OPTIONS requests
-    res.set("Access-Control-Allow-Methods", "GET, POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "3600");
-    res.status(204).send("");
-  } else {
-    if (req.body.tripId && req.body.type) {
+
+exports.tripPassengerCreateTriggerDev = functions.database
+  .ref("/trip-passengers/{tripPassengerId}")
+  .onCreate(async function (snapshot, context) {
+    const original = snapshot.val();
+    const driverId = original.driverId;
+    const driver = (
+      await admin
+        .database()
+        .ref("drivers/" + driverId)
+        .once("value")
+    ).val();
+    const driverNotification = (
+      await admin
+        .database()
+        .ref("driver-push-notifications/" + driverId)
+        .once("value")
+    ).val();
+    const msgDriver = "New Ride Available";
+    if (driver.isPhoneVerified) {
+      sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
+    }
+    if (driverNotification.isPushEnabled) {
+      sendMessage(
+        driverNotification.pushToken,
+        "New Ride Available",
+        "Driver Notification : " + msgDriver
+      );
+    }
+  });
+
+exports.tripPassengerUpdateTriggerDev = functions.database
+  .ref("/trip-passengers/{tripPassengerId}")
+  .onUpdate(async function (snapshot, context) {
+    const key = context.params.tripPassengerId;
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+    const driverId = after.driverId;
+    const passengerId = after.passengerId;
+
+    const driver = (
+      await admin
+        .database()
+        .ref("drivers/" + driverId)
+        .once("value")
+    ).val();
+    const driverNotification = (
+      await admin
+        .database()
+        .ref("driver-push-notifications/" + driverId)
+        .once("value")
+    ).val();
+    const passenger = (
+      await admin
+        .database()
+        .ref("passengers/" + passengerId)
+        .once("value")
+    ).val();
+    const passengerNotification = (
+      await admin
+        .database()
+        .ref("passenger-push-notifications/" + passengerId)
+        .once("value")
+    ).val();
+
+    const companyData = (
+      await admin.database().ref("company-details").once("value")
+    ).val();
+
+    const vehicleType = (
+      await admin
+        .database()
+        .ref("fleets/" + after.vehicleType)
+        .once("value")
+    ).val();
+
+    if(after.status == TRIP_STATUS_CANCELED || after.status == TRIP_STATUS_FINISHED) {
+      const tripData = (
+        await admin.database().ref("trips/" + after.tripId).once("value")
+      ).val();
+  
+      if (tripData.status == TRIP_STATUS_GOING) {
+        admin
+          .database()
+          .ref("trip-passengers")
+          .orderByChild("tripId")
+          .equalTo(after.tripId)
+          .once("value", function (snap) {
+            let count = 0;
+            if (snap) {
+              snap.forEach(function (tripPassenger) {
+                let status = tripPassenger.val().status;
+                if(status == TRIP_STATUS_ACCEPTED || status == TRIP_STATUS_WAITING || status == TRIP_STATUS_GOING ) {
+                  count++;
+                };
+              });
+            }
+            
+            if(count == 0) {
+              admin
+              .database()
+              .ref("/trips/" + after.tripId)
+              .update({ status: TRIP_STATUS_FINISHED });
+            }
+          });
+      }
+    }
+
+    if (
+      before.status == TRIP_STATUS_PENDING &&
+      after.status == TRIP_STATUS_ACCEPTED
+    ) {
+      const msgDriver = "Booking Accepted : Trip ID : " + key;
+      if (driver.isPhoneVerified) {
+        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
+      }
+      if (driverNotification.isPushEnabled) {
+        sendMessage(
+          driverNotification.pushToken,
+          "Booking Accepted",
+          "Driver Notification : " + msgDriver
+        );
+      }
+
+      const msgPassenger = "Booking Accepted By Driver : Trip ID : " + key;
+      const msg1Passenger = "OTP For Ride : " + key + " Is " + after.otp;
+      if (passenger.isPhoneVerified) {
+        sendSMS(
+          "+91" + passenger.phoneNumber,
+          "Passenger Sms : " + msgPassenger
+        );
+        sendSMS("+91" + passenger.phoneNumber, msg1Passenger);
+      }
+      if (passengerNotification && passengerNotification.isPushEnabled) {
+        sendMessage(
+          passengerNotification.pushToken,
+          "Booking Accepted",
+          "Passenger Notification : " + msgPassenger
+        );
+      }
+
+      // Send Ride Accepted Email
+      let emailHeader = (
+        await admin.database().ref("email-templates/header").once("value")
+      ).val();
+
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{date}", "g"),
+        moment(original.departDate).format("Do MMM YYYY hh:mm A")
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyLogo}", "g"),
+        companyData.logo
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyName}", "g"),
+        companyData.name.toUpperCase()
+      );
+
+      let emailBody = (
+        await admin.database().ref("email-templates/ride-offer").once("value")
+      ).val();
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{title}", "g"),
+        "Ride Accepted"
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{routeMap}", "g"),
+        "https://wrapspeedtaxi.com/public/email_images/map.png"
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{driverName}", "g"),
+        driver.name
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{driverPic}", "g"),
+        driver.profilePic ? driver.profilePic : companyData.logo
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fleetType}", "g"),
+        vehicleType.name
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fleetDetail}", "g"),
+        driver.brand + " - " + driver.model
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fromAddress}", "g"),
+        original.origin.address
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{toAddress}", "g"),
+        original.destination.address
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
+
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
+      ).val();
+
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
+
+      let emailData = {
+        pageTitle: "Ride Accepted",
+        header,
+        body,
+        footer,
+      };
+
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+        if (err) {
+          functions.logger.error(err);
+        } else {
+          let callBack = function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
+            } else {
+              functions.logger.info(info);
+            }
+          };
+          sendEmail(
+            {
+              to: passenger.email,
+              bcc: driver.email,
+              subject: "Ride Accepted",
+              html,
+            },
+            callBack
+          );
+        }
+      });
+      // Send Ride Accepted Email Ends
+    } else if (
+      after.status == TRIP_STATUS_WAITING &&
+      before.status == TRIP_STATUS_ACCEPTED
+    ) {
+      const msg = "Pick Up Available : Trip ID : " + key;
+      if (driver.isPhoneVerified) {
+        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+      }
+      if (driverNotification && driverNotification.isPushEnabled) {
+        sendMessage(
+          driverNotification.pushToken,
+          "Pick Up Available",
+          "Driver Notification : " + msg
+        );
+      }
+      const msg1 = "Driver To Be Arrived Shortly : Trip ID : " + key;
+      if (passenger.isPhoneVerified) {
+        sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
+      }
+      if (passengerNotification && passengerNotification.isPushEnabled) {
+        sendMessage(
+          passengerNotification.pushToken,
+          "Driver To Be Arrived Shortly",
+          "Passenger Notification : " + msg1
+        );
+      }
+    } else if (
+      after.status == TRIP_STATUS_GOING &&
+      before.status == TRIP_STATUS_WAITING
+    ) {
+      const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
+      if (driver.isPhoneVerified) {
+        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+      }
+      if (driverNotification && driverNotification.isPushEnabled) {
+        sendMessage(
+          driverNotification.pushToken,
+          "Destination To Be Arrived Soon",
+          "Driver Notification : " + msg
+        );
+      }
+      const msg1 = "Destination To Be Arrived Soon : Trip ID : " + key;
+      if (passenger.isPhoneVerified) {
+        sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
+      }
+      if (passengerNotification && passengerNotification.isPushEnabled) {
+        sendMessage(
+          passengerNotification.pushToken,
+          "Destination To Be Arrived Soon",
+          "Passenger Notification : " + msg1
+        );
+      }
+    } else if (
+      after.status == TRIP_STATUS_FINISHED &&
+      before.status == TRIP_STATUS_GOING
+    ) {
+      admin
+        .database()
+        .ref("/trip-passengers")
+        .orderByChild("driverId")
+        .equalTo(after.driverId)
+        .once("value", function (snap) {
+          var stars = 0;
+          var count = 0;
+          if (snap != null) {
+            snap.forEach(function (trip) {
+              if (
+                trip.val().passengerRating &&
+                trip.val().passengerRating.rating != null
+              ) {
+                stars += parseInt(trip.val().passengerRating.rating);
+                count++;
+              }
+            });
+            var rating = stars / count;
+            console.log("Rating:" + rating);
+
+            if (!isNaN(rating)) {
+              admin
+                .database()
+                .ref("/drivers/" + original.driverId)
+                .update({ rating: rating.toFixed(1) });
+            } else {
+              admin
+                .database()
+                .ref("/drivers/" + original.driverId)
+                .update({ rating: 0 });
+            }
+          }
+        });
+
+      const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
+
+      if (driver.isPhoneVerified) {
+        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
+      }
+      if (driverNotification && driverNotification.isPushEnabled) {
+        sendMessage(
+          driverNotification.pushToken,
+          "Destination Arrived",
+          "Driver Notification : " + msg
+        );
+      }
+
+      if (passenger.isPhoneVerified) {
+        sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
+      }
+
+      if (passengerNotification && passengerNotification.isPushEnabled) {
+        sendMessage(
+          passengerNotification.pushToken,
+          "Destination Arrived",
+          "Passenger Notification : " + msg
+        );
+      }
+
       const businessData = (
         await admin.database().ref("business-management").once("value")
       ).val();
@@ -1990,169 +2633,281 @@ exports.generateMailDev = functions.https.onRequest(async (req, res) => {
         await admin.database().ref("company-details").once("value")
       ).val();
 
-      const tripData = (
+      const vehicleType = (
         await admin
           .database()
-          .ref("trips/" + req.body.tripId)
+          .ref("fleets/" + after.vehicleType)
           .once("value")
       ).val();
 
-      if (tripData) {
-        const vehicleType = (
-          await admin
-            .database()
-            .ref("fleets/" + tripData.vehicleType)
-            .once("value")
-        ).val();
-
-        const passengerData = (
-          await admin
-            .database()
-            .ref("passengers/" + tripData.passengerId)
-            .once("value")
-        ).val();
-
-        const driverData = (
-          await admin
-            .database()
-            .ref("drivers/" + tripData.driverId)
-            .once("value")
-        ).val();
-        
-        let splitPayments = [];
-        let amount  = tripData.fareDetails.finalFare;
-        if(tripData.waitingCharges) amount += tripData.waitingCharges;
-        let finalFare = amount;
-  
-        const splits = (
-          await admin
-            .database()
-            .ref("trip-split-payment/" + req.body.tripId)
-            .once("value")
-        ).val();
-        if (splits != null) {
-          for (const [key, value] of Object.entries(splits)) {
-            splitPayments.push(value);
-          }
-          splitPayments = splitPayments.reverse();
-        } 
-        
-        amount = amount / (splitPayments.length + 1);
-
-        let emailHeader = (
-          await admin.database().ref("email-templates/header").once("value")
-        ).val();
-       
-        emailHeader.template = emailHeader.template.replace(new RegExp("{date}", 'g'), moment(tripData.pickedUpAt).format("Do MMM YYYY"));
-        emailHeader.template = emailHeader.template.replace(new RegExp("{companyLogo}", 'g'), companyData.logo);
-        emailHeader.template = emailHeader.template.replace(new RegExp("{companyName}", 'g'), companyData.name.toUpperCase());
-
-        let emailBody = (
-          await admin.database().ref("email-templates/invoice").once("value")
-        ).val();
-        // Invoice Body Replacement 
-        emailBody.template = emailBody.template.replace(new RegExp("{companyWeb}", 'g'), "https://wrapspeedtaxi.com/");
-        emailBody.template = emailBody.template.replace(new RegExp("{currency}", 'g'), businessData.currency);
-        emailBody.template = emailBody.template.replace(new RegExp("{finalFare}", 'g'), finalFare.toFixed(2));
-        emailBody.template = emailBody.template.replace(new RegExp("{tripId}", 'g'), req.body.tripId);
-        emailBody.template = emailBody.template.replace(new RegExp("{routeMap}", 'g'), "https://wrapspeedtaxi.com/public/email_images/map.png"); 
-        emailBody.template = emailBody.template.replace(new RegExp("{riderName}", 'g'), passengerData.name);
-        emailBody.template = emailBody.template.replace(new RegExp("{riderNumber}", 'g'), passengerData.phoneNumber);
-        emailBody.template = emailBody.template.replace(new RegExp("{driverName}", 'g'), driverData.name);
-        emailBody.template = emailBody.template.replace(new RegExp("{driverProfilePic}", 'g'), driverData.profilePic
-        ? driverData.profilePic : companyData.logo); 
-        emailBody.template = emailBody.template.replace(new RegExp("{fleetType}", 'g'), vehicleType.name);
-        emailBody.template = emailBody.template.replace(new RegExp("{fleetDetail}", 'g'), driverData.brand + " - " + driverData.model);
-        emailBody.template = emailBody.template.replace(new RegExp("{fromTime}", 'g'), moment(new Date(tripData.pickedUpAt)).format("hh:mm A"));
-        emailBody.template = emailBody.template.replace(new RegExp("{fromAddress}", 'g'), tripData.origin.address);
-        emailBody.template = emailBody.template.replace(new RegExp("{endTime}", 'g'), moment(new Date(tripData.droppedOffAt)).format("hh:mm A"));
-        emailBody.template = emailBody.template.replace(new RegExp("{toAddress}", 'g'), tripData.destination.address);
-        emailBody.template = emailBody.template.replace(new RegExp("{baseFare}", 'g'), tripData.fareDetails.baseFare.toFixed(2));
-        emailBody.template = emailBody.template.replace(new RegExp("{taxFare}", 'g'), tripData.fareDetails.tax.toFixed(2));
-        emailBody.template = emailBody.template.replace(new RegExp("{paidBy}", 'g'), tripData.paymentMethod);
-        emailBody.template = emailBody.template.replace(new RegExp("{splittedAmount}", 'g'), amount.toFixed(2));
-        if(tripData.paymentMethod == 'cash') {
-          emailBody.template = emailBody.template.replace(new RegExp("{paidByImage}", 'g'), "https://wrapspeedtaxi.com/public/email_images/cash.png");
-        } else if(tripData.paymentMethod == 'wallet') {
-          emailBody.template = emailBody.template.replace(new RegExp("{paidByImage}", 'g'), "https://wrapspeedtaxi.com/public/email_images/wallet.png");
-        } else {
-          emailBody.template = emailBody.template.replace(new RegExp("{paidByImage}", 'g'), "https://wrapspeedtaxi.com/public/email_images/card.png");
+      let splitPayments = [];
+      let amount = after.fareDetails.finalFare;
+      if (after.waitingCharges) amount += after.waitingCharges;
+      let finalFare = amount;
+      const splits = (
+        await admin
+          .database()
+          .ref("trip-split-payment/" + key)
+          .once("value")
+      ).val();
+      if (splits != null) {
+        for (const [key, value] of Object.entries(splits)) {
+          splitPayments.push(value);
         }
-        let splitRows = '';
-        splitPayments.forEach(async element => {
-          let emailBodySplitPayment = (
-            await admin.database().ref("email-templates/invoice-split-payment-row").once("value")
-          ).val();
-          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{name}", 'g'), element.name );
-          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{phoneNumber}", 'g'), element.mobile);
-          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{currency}", 'g'), businessData.currency);
-          emailBodySplitPayment.template = emailBodySplitPayment.template.replace(new RegExp("{splittedAmount}", 'g'), amount.toFixed(2));
-          splitRows += emailBodySplitPayment.template;
-        });
-        emailBody.template = emailBody.template.replace(new RegExp("{splitRows}", 'g'), splitRows);
-        // Invoice Body Replacement Ends
-
-        let emailFooter = (
-          await admin.database().ref("email-templates/footer").once("value")
-        ).val();
-
-        let header = ejs.render(emailHeader.template);
-        let body = ejs.render(emailBody.template);
-        let footer = ejs.render(emailFooter.template);
-    
-        let emailData = {
-          pageTitle : "Invoice For Trip : #" + req.body.tripId,
-          header,
-          body,
-          footer
-        };
-
-        ejs.renderFile(__dirname + "/email.ejs", emailData, function (
-          err,
-          html
-        ) {
-          if (err) {
-            functions.logger.error(err);
-            return res.status(200).json({
-              status: -1,
-              msg: "Unable To Send Invoice Via Mail.",
-            });
-          } else {
-            let callBack = function (err1, info) {
-              if (err1) {
-                functions.logger.error(err1);
-                return res.status(200).json({
-                  status: -1,
-                  msg: "Error occured while sending mail.",
-                });
-              } else {
-                functions.logger.info(info);
-                return res.status(200).json({
-                  status: 1,
-                  msg: "Mail sent successfully.",
-                });
-              }
-            };
-            sendEmail({
-              to: req.body.email,
-              bcc : null,
-              subject : "Invoice For Trip : #" + req.body.tripId,
-              html
-            }, callBack);
-          }
-        });
-      } else {
-        return res.status(200).json({
-          status: -1,
-          msg: "Trip Data Not Found",
-        });
+        splitPayments = splitPayments.reverse();
       }
-    } else {
-      return res.status(200).json({
-        status: -1,
-        msg: "Either Type Or Trip Id Not Found",
+
+      amount = amount / (splitPayments.length + 1);
+
+      let emailData = {
+        companyWeb: "https://wrapspeedtaxi.com",
+        title: "Invoice For Trip : #" + key,
+        tripDate: moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
+        companyLogo: companyData.logo,
+        companyName: companyData.name,
+        currency: businessData.currency,
+        finalFare: finalFare.toFixed(2),
+        tripId: key,
+        routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
+        riderName: passenger.name,
+        riderNumber: passenger.phoneNumber,
+        driverName: driver.name,
+        driverProfilePic: driver.profilePic
+          ? driver.profilePic
+          : companyData.logo,
+        fleetType: vehicleType.name,
+        fleetDetail: driver.brand + " - " + driver.model,
+        fromTime: moment(new Date(after.pickedUpAt)).format("hh:mm A"),
+        fromAddress: after.origin.address,
+        endTime: moment(new Date(after.droppedOffAt)).format("hh:mm A"),
+        toAddress: after.destination.address,
+        baseFare: after.fareDetails.baseFare,
+        taxFare: after.fareDetails.tax,
+        paidBy: after.paymentMethod,
+        paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+        splittedAmount: amount.toFixed(2),
+        splitAccounts: splitPayments,
+      };
+
+      ejs.renderFile(__dirname + "/invoice.ejs", emailData, async function (
+        err,
+        html
+      ) {
+        if (err) {
+          functions.logger.error(err);
+        } else {
+          let callBack = function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
+              mailer.close();
+            } else {
+              functions.logger.info(info);
+              mailer.close();
+            }
+          };
+          sendEmail(
+            {
+              to: passenger.email,
+              bcc: driver.email,
+              subject: "Invoice For Trip : #" + key,
+              html,
+            },
+            callBack
+          );
+        }
       });
+
+      if (after.paymentMethod != "cash") {
+        let walletDetails = (
+          await admin
+            .database()
+            .ref("driver-wallets/" + driverId)
+            .once("value")
+        ).val();
+        let balance = 0;
+        if (walletDetails && walletDetails.balance) {
+          balance = walletDetails.balance;
+        }
+        balance += after.fareDetails.commission;
+        admin
+          .database()
+          .ref("driver-wallets/" + driverId)
+          .update({ balance: parseFloat(balance.toFixed(2)) });
+        admin
+          .database()
+          .ref("payment-transactions/wallet")
+          .push({
+            amount: parseFloat(after.fareDetails.commission.toFixed(2)),
+            description: "Cashless Ride Completed",
+            driver_id: driverId,
+            driver_email: driver.email,
+            type: 1,
+            created: Date.now(),
+          });
+      } else {
+        let walletDetails = (
+          await admin
+            .database()
+            .ref("driver-wallets/" + driverId)
+            .once("value")
+        ).val();
+        let balance = 0;
+        if (walletDetails && walletDetails.balance) {
+          balance = walletDetails.balance;
+        }
+
+        balance -= finalFare - after.fareDetails.commission;
+
+        admin
+          .database()
+          .ref("driver-wallets/" + driverId)
+          .update({ balance: parseFloat(balance.toFixed(2)) });
+        admin
+          .database()
+          .ref("payment-transactions/wallet")
+          .push({
+            amount: parseFloat(
+              (finalFare - after.fareDetails.commission).toFixed(2)
+            ),
+            description: "Cash Ride Completed",
+            driver_id: driverId,
+            driver_email: driver.email,
+            type: 0,
+            created: Date.now(),
+          });
+      }
+    } else if (after.status == TRIP_STATUS_CANCELED) {
+      const msg = "The Trip Got Canceled. Trip ID : " + key;
+      if (driver.isPhoneVerified) {
+        sendSMS("+91" + driver.phoneNumber, "Driver SMS" + msg);
+      }
+      if (driverNotification && driverNotification.isPushEnabled) {
+        sendMessage(
+          driverNotification.pushToken,
+          "Trip Canceled",
+          "Driver Notification" + msg
+        );
+      }
+      if (passenger.isPhoneVerified) {
+        sendSMS("+91" + passenger.phoneNumber, "Passenger SMS" + msg);
+      }
+      if (passengerNotification && passengerNotification.isPushEnabled) {
+        sendMessage(
+          passengerNotification.pushToken,
+          "Trip Canceled",
+          "Passenger Notification" + msg
+        );
+      }
+
+      // Cancelled Trip Mail
+      const companyData = (
+        await admin.database().ref("company-details").once("value")
+      ).val();
+
+      const vehicleType = (
+        await admin
+          .database()
+          .ref("fleets/" + after.vehicleType)
+          .once("value")
+      ).val();
+
+      let emailHeader = (
+        await admin.database().ref("email-templates/header").once("value")
+      ).val();
+
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{date}", "g"),
+        moment(after.departDate).format("Do MMM YYYY hh:mm A")
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyLogo}", "g"),
+        companyData.logo
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyName}", "g"),
+        companyData.name.toUpperCase()
+      );
+
+      let emailBody = (
+        await admin.database().ref("email-templates/ride-offer").once("value")
+      ).val();
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{title}", "g"),
+        "Ride Cancelled"
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{routeMap}", "g"),
+        "https://wrapspeedtaxi.com/public/email_images/map.png"
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{driverName}", "g"),
+        driver.name
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{driverPic}", "g"),
+        driver.profilePic ? driver.profilePic : companyData.logo
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fleetType}", "g"),
+        vehicleType.name
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fleetDetail}", "g"),
+        driver.brand + " - " + driver.model
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fromAddress}", "g"),
+        after.origin.address
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{toAddress}", "g"),
+        after.destination.address
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
+
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
+      ).val();
+
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
+
+      let emailData = {
+        pageTitle: "Ride Cancelled",
+        header,
+        body,
+        footer,
+      };
+
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+        if (err) {
+          functions.logger.error(err);
+        } else {
+          let callBack = function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
+            } else {
+              functions.logger.info(info);
+            }
+          };
+          sendEmail(
+            {
+              to: passenger.email,
+              bcc: driver.email,
+              subject: "Ride Cancelled",
+              html,
+            },
+            callBack
+          );
+        }
+      });
+      // Cancelled Trip Mail Ends
     }
-  }
-});
+  });
+
 /************************************End Testing Functions*************************************************/
