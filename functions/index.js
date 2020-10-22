@@ -2343,6 +2343,13 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
         .once("value")
     ).val();
 
+    const tripData = (
+      await admin
+        .database()
+        .ref("trips/" + after.tripId)
+        .once("value")
+    ).val();
+
     if (after.status != before.status) {
       let trips = [];
       admin
@@ -2360,6 +2367,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               if (trip.status == TRIP_STATUS_ACCEPTED) {
                 trips.push({
                   key: trip.key,
+                  seats : trip.seats,
                   distance:
                     calcCrow(
                       driverLocation.lat,
@@ -2371,6 +2379,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               } else if (trip.status == TRIP_STATUS_WAITING) {
                 trips.push({
                   key: trip.key,
+                  seats : trip.seats,
                   distance: calcCrow(
                     driverLocation.lat,
                     driverLocation.lng,
@@ -2381,6 +2390,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               } else if (trip.status == TRIP_STATUS_GOING) {
                 trips.push({
                   key: trip.key,
+                  seats : trip.seats,
                   distance: calcCrow(
                     driverLocation.lat,
                     driverLocation.lng,
@@ -2394,10 +2404,15 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
             functions.logger.info(trips);
             if (trips.length > 0) {
               trips = trips.sort((a, b) => a.distance - b.distance);
+              let seatsOccupied = 0;
+              trips.forEach(function(trip){
+                seatsOccupied += trip.seats;
+              });
+              let seats = tripData.totalSeats - seatsOccupied;
               admin
                 .database()
                 .ref("/trips/" + after.tripId)
-                .update({ isCurrent: trips[0].key });
+                .update({ isCurrent: trips[0].key, availableSeats : seats });
             } else {
               admin
                 .database()
