@@ -4,7 +4,6 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
-const { ref } = require("firebase-functions/lib/providers/database");
 const cors = require("cors")({
   origin: true,
 });
@@ -36,7 +35,6 @@ const TRIP_STATUS_WAITING = "waiting";
 const TRIP_STATUS_GOING = "going";
 const TRIP_STATUS_FINISHED = "finished";
 const TRIP_STATUS_CANCELED = "canceled";
-const PAYMENT_METHOD_CARD = "card";
 
 admin.initializeApp();
 
@@ -872,608 +870,7 @@ exports.updatePassenger = functions.database
     }
   });
 
-// exports.tripCreateTrigger = functions.database
-//   .ref("/trips/{tripId}")
-//   .onCreate(async function (snapshot, context) {
-//     const key = context.params.tripId;
-//     const original = snapshot.val();
-//     const driverId = original.driverId;
-//     const passengerId = original.passengerId;
-
-//     const driver = (
-//       await admin
-//         .database()
-//         .ref("drivers/" + driverId)
-//         .once("value")
-//     ).val();
-//     const driverNotification = (
-//       await admin
-//         .database()
-//         .ref("driver-push-notifications/" + driverId)
-//         .once("value")
-//     ).val();
-//     const passenger = (
-//       await admin
-//         .database()
-//         .ref("passengers/" + passengerId)
-//         .once("value")
-//     ).val();
-//     const passengerNotification = (
-//       await admin
-//         .database()
-//         .ref("passenger-push-notifications/" + passengerId)
-//         .once("value")
-//     ).val();
-
-//     const msgDriver = "Booking Accepted : Trip ID : " + key;
-//     if (driver.isPhoneVerified) {
-//       sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
-//     }
-//     if (driverNotification.isPushEnabled) {
-//       sendMessage(
-//         driverNotification.pushToken,
-//         "Booking Accepted",
-//         "Driver Notification : " + msgDriver
-//       );
-//     }
-
-//     const msgPassenger = "Booking Accepted By Driver : Trip ID : " + key;
-//     const msg1Passenger = "OTP For Ride : " + key + " Is " + original.otp;
-//     if (passenger.isPhoneVerified) {
-//       sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msgPassenger);
-//       sendSMS("+91" + passenger.phoneNumber, msg1Passenger);
-//     }
-//     if (passengerNotification && passengerNotification.isPushEnabled) {
-//       sendMessage(
-//         passengerNotification.pushToken,
-//         "Booking Accepted",
-//         "Passenger Notification : " + msgPassenger
-//       );
-//     }
-
-//     // Send Ride Accepted Email
-//     const companyData = (
-//       await admin.database().ref("company-details").once("value")
-//     ).val();
-
-//     const vehicleType = (
-//       await admin
-//         .database()
-//         .ref("fleets/" + original.vehicleType)
-//         .once("value")
-//     ).val();
-
-//     let emailHeader = (
-//       await admin.database().ref("email-templates/header").once("value")
-//     ).val();
-
-//     emailHeader.template = emailHeader.template.replace(
-//       new RegExp("{date}", "g"),
-//       moment(original.departDate).format("Do MMM YYYY hh:mm A")
-//     );
-//     emailHeader.template = emailHeader.template.replace(
-//       new RegExp("{companyLogo}", "g"),
-//       companyData.logo
-//     );
-//     emailHeader.template = emailHeader.template.replace(
-//       new RegExp("{companyName}", "g"),
-//       companyData.name.toUpperCase()
-//     );
-
-//     let emailBody = (
-//       await admin.database().ref("email-templates/ride-offer").once("value")
-//     ).val();
-
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{title}", "g"),
-//       "Ride Accepted"
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{routeMap}", "g"),
-//       "https://wrapspeedtaxi.com/public/email_images/map.png"
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{driverName}", "g"),
-//       driver.name
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{driverPic}", "g"),
-//       driver.profilePic ? driver.profilePic : companyData.logo
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{fleetType}", "g"),
-//       vehicleType.name
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{fleetDetail}", "g"),
-//       driver.brand + " - " + driver.model
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{fromAddress}", "g"),
-//       original.origin.address
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{toAddress}", "g"),
-//       original.destination.address
-//     );
-//     emailBody.template = emailBody.template.replace(
-//       new RegExp("{companyWeb}", "g"),
-//       "https://wrapspeedtaxi.com/"
-//     );
-
-//     let emailFooter = (
-//       await admin.database().ref("email-templates/footer").once("value")
-//     ).val();
-
-//     let header = ejs.render(emailHeader.template);
-//     let body = ejs.render(emailBody.template);
-//     let footer = ejs.render(emailFooter.template);
-
-//     let emailData = {
-//       pageTitle: "Ride Accepted",
-//       header,
-//       body,
-//       footer,
-//     };
-
-//     ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-//       if (err) {
-//         functions.logger.error(err);
-//       } else {
-//         let callBack = function (err1, info) {
-//           if (err1) {
-//             functions.logger.error(err1);
-//           } else {
-//             functions.logger.info(info);
-//           }
-//         };
-//         sendEmail(
-//           {
-//             to: passenger.email,
-//             bcc: driver.email,
-//             subject: "Ride Accepted",
-//             html,
-//           },
-//           callBack
-//         );
-//       }
-//     });
-//     // Send Ride Accepted Email Ends
-//   });
-
-// exports.tripUpdateTrigger = functions.database
-//   .ref("/trips/{tripId}")
-//   .onUpdate(async function (snapshot, context) {
-//     const key = context.params.tripId;
-//     const before = snapshot.before.val();
-//     const after = snapshot.after.val();
-//     const driverId = after.driverId;
-//     const passengerId = after.passengerId;
-
-//     const driver = (
-//       await admin
-//         .database()
-//         .ref("drivers/" + driverId)
-//         .once("value")
-//     ).val();
-//     const driverNotification = (
-//       await admin
-//         .database()
-//         .ref("driver-push-notifications/" + driverId)
-//         .once("value")
-//     ).val();
-//     const passenger = (
-//       await admin
-//         .database()
-//         .ref("passengers/" + passengerId)
-//         .once("value")
-//     ).val();
-//     const passengerNotification = (
-//       await admin
-//         .database()
-//         .ref("passenger-push-notifications/" + passengerId)
-//         .once("value")
-//     ).val();
-
-//     if (after.status == TRIP_STATUS_WAITING) {
-//       const msg = "Pick Up Available : Trip ID : " + key;
-//       if (driver.isPhoneVerified) {
-//         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-//       }
-//       if (driverNotification && driverNotification.isPushEnabled) {
-//         sendMessage(
-//           driverNotification.pushToken,
-//           "Pick Up Available",
-//           "Driver Notification : " + msg
-//         );
-//       }
-//       const msg1 = "Driver To Be Arrived Shortly : Trip ID : " + key;
-//       if (passenger.isPhoneVerified) {
-//         sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
-//       }
-//       if (passengerNotification && passengerNotification.isPushEnabled) {
-//         sendMessage(
-//           passengerNotification.pushToken,
-//           "Driver To Be Arrived Shortly",
-//           "Passenger Notification : " + msg1
-//         );
-//       }
-//     } else if (
-//       after.status == TRIP_STATUS_GOING &&
-//       before.status == TRIP_STATUS_WAITING
-//     ) {
-//       const msg = "Destination To Be Arrived Soon : Trip ID : " + key;
-//       if (driver.isPhoneVerified) {
-//         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-//       }
-//       if (driverNotification && driverNotification.isPushEnabled) {
-//         sendMessage(
-//           driverNotification.pushToken,
-//           "Destination To Be Arrived Soon",
-//           "Driver Notification : " + msg
-//         );
-//       }
-//       const msg1 = "Destination To Be Arrived Soon : Trip ID : " + key;
-//       if (passenger.isPhoneVerified) {
-//         sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg1);
-//       }
-//       if (passengerNotification && passengerNotification.isPushEnabled) {
-//         sendMessage(
-//           passengerNotification.pushToken,
-//           "Destination To Be Arrived Soon",
-//           "Passenger Notification : " + msg1
-//         );
-//       }
-//     } else if (
-//       after.status == TRIP_STATUS_FINISHED &&
-//       before.status == TRIP_STATUS_GOING
-//     ) {
-//       admin
-//         .database()
-//         .ref("/trips")
-//         .orderByChild("driverId")
-//         .equalTo(after.driverId)
-//         .once("value", function (snap) {
-//           var stars = 0;
-//           var count = 0;
-//           if (snap != null) {
-//             snap.forEach(function (trip) {
-//               if (
-//                 trip.val().passengerRating &&
-//                 trip.val().passengerRating.rating != null
-//               ) {
-//                 stars += parseInt(trip.val().passengerRating.rating);
-//                 count++;
-//               }
-//             });
-//             var rating = stars / count;
-//             console.log("Rating:" + rating);
-
-//             if (!isNaN(rating)) {
-//               admin
-//                 .database()
-//                 .ref("/drivers/" + original.driverId)
-//                 .update({ rating: rating.toFixed(1) });
-//             } else {
-//               admin
-//                 .database()
-//                 .ref("/drivers/" + original.driverId)
-//                 .update({ rating: 0 });
-//             }
-//           }
-//         });
-
-//       const msg = "Destination Arrived. Trip Ended : Trip ID : " + key;
-
-//       if (driver.isPhoneVerified) {
-//         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msg);
-//       }
-//       if (driverNotification && driverNotification.isPushEnabled) {
-//         sendMessage(
-//           driverNotification.pushToken,
-//           "Destination Arrived",
-//           "Driver Notification : " + msg
-//         );
-//       }
-
-//       if (passenger.isPhoneVerified) {
-//         sendSMS("+91" + passenger.phoneNumber, "Passenger Sms : " + msg);
-//       }
-
-//       if (passengerNotification && passengerNotification.isPushEnabled) {
-//         sendMessage(
-//           passengerNotification.pushToken,
-//           "Destination Arrived",
-//           "Passenger Notification : " + msg
-//         );
-//       }
-
-//       const businessData = (
-//         await admin.database().ref("business-management").once("value")
-//       ).val();
-
-//       const companyData = (
-//         await admin.database().ref("company-details").once("value")
-//       ).val();
-
-//       const vehicleType = (
-//         await admin
-//           .database()
-//           .ref("fleets/" + after.vehicleType)
-//           .once("value")
-//       ).val();
-
-//       let splitPayments = [];
-//       let amount = after.fareDetails.finalFare;
-//       if (after.waitingCharges) amount += after.waitingCharges;
-//       let finalFare = amount;
-//       const splits = (
-//         await admin
-//           .database()
-//           .ref("trip-split-payment/" + key)
-//           .once("value")
-//       ).val();
-//       if (splits != null) {
-//         for (const [key, value] of Object.entries(splits)) {
-//           splitPayments.push(value);
-//         }
-//         splitPayments = splitPayments.reverse();
-//       }
-
-//       amount = amount / (splitPayments.length + 1);
-
-//       let emailData = {
-//         companyWeb: "https://wrapspeedtaxi.com",
-//         title: "Invoice For Trip : #" + key,
-//         tripDate: moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
-//         companyLogo: companyData.logo,
-//         companyName: companyData.name,
-//         currency: businessData.currency,
-//         finalFare: finalFare.toFixed(2),
-//         tripId: key,
-//         routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
-//         riderName: passenger.name,
-//         riderNumber: passenger.phoneNumber,
-//         driverName: driver.name,
-//         driverProfilePic: driver.profilePic
-//           ? driver.profilePic
-//           : companyData.logo,
-//         fleetType: vehicleType.name,
-//         fleetDetail: driver.brand + " - " + driver.model,
-//         fromTime: moment(new Date(after.pickedUpAt)).format("hh:mm A"),
-//         fromAddress: after.origin.address,
-//         endTime: moment(new Date(after.droppedOffAt)).format("hh:mm A"),
-//         toAddress: after.destination.address,
-//         baseFare: after.fareDetails.baseFare,
-//         taxFare: after.fareDetails.tax,
-//         paidBy: after.paymentMethod,
-//         paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
-//         splittedAmount: amount.toFixed(2),
-//         splitAccounts: splitPayments,
-//       };
-
-//       ejs.renderFile(__dirname + "/invoice.ejs", emailData, async function (
-//         err,
-//         html
-//       ) {
-//         if (err) {
-//           functions.logger.error(err);
-//         } else {
-//           let callBack = function (err1, info) {
-//             if (err1) {
-//               functions.logger.error(err1);
-//               mailer.close();
-//             } else {
-//               functions.logger.info(info);
-//               mailer.close();
-//             }
-//           };
-//           sendEmail(
-//             {
-//               to: passenger.email,
-//               bcc: driver.email,
-//               subject: "Invoice For Trip : #" + key,
-//               html,
-//             },
-//             callBack
-//           );
-//         }
-//       });
-
-//       if (after.paymentMethod != "cash") {
-//         let walletDetails = (
-//           await admin
-//             .database()
-//             .ref("driver-wallets/" + driverId)
-//             .once("value")
-//         ).val();
-//         let balance = 0;
-//         if (walletDetails && walletDetails.balance) {
-//           balance = walletDetails.balance;
-//         }
-//         balance += after.fareDetails.commission;
-//         admin
-//           .database()
-//           .ref("driver-wallets/" + driverId)
-//           .update({ balance: parseFloat(balance.toFixed(2)) });
-//         admin
-//           .database()
-//           .ref("payment-transactions/wallet")
-//           .push({
-//             amount: parseFloat(after.fareDetails.commission.toFixed(2)),
-//             description: "Cashless Ride Completed",
-//             driver_id: driverId,
-//             driver_email: driver.email,
-//             type: 1,
-//             created: Date.now(),
-//           });
-//       } else {
-//         let walletDetails = (
-//           await admin
-//             .database()
-//             .ref("driver-wallets/" + driverId)
-//             .once("value")
-//         ).val();
-//         let balance = 0;
-//         if (walletDetails && walletDetails.balance) {
-//           balance = walletDetails.balance;
-//         }
-
-//         balance -= finalFare - after.fareDetails.commission;
-
-//         admin
-//           .database()
-//           .ref("driver-wallets/" + driverId)
-//           .update({ balance: parseFloat(balance.toFixed(2)) });
-//         admin
-//           .database()
-//           .ref("payment-transactions/wallet")
-//           .push({
-//             amount: parseFloat(
-//               (finalFare - after.fareDetails.commission).toFixed(2)
-//             ),
-//             description: "Cash Ride Completed",
-//             driver_id: driverId,
-//             driver_email: driver.email,
-//             type: 0,
-//             created: Date.now(),
-//           });
-//       }
-//     } else if (after.status == TRIP_STATUS_CANCELED) {
-//       const msg = "The Trip Got Canceled. Trip ID : " + key;
-//       if (driver.isPhoneVerified) {
-//         sendSMS("+91" + driver.phoneNumber, "Driver SMS" + msg);
-//       }
-//       if (driverNotification && driverNotification.isPushEnabled) {
-//         sendMessage(
-//           driverNotification.pushToken,
-//           "Trip Canceled",
-//           "Driver Notification" + msg
-//         );
-//       }
-//       if (passenger.isPhoneVerified) {
-//         sendSMS("+91" + passenger.phoneNumber, "Passenger SMS" + msg);
-//       }
-//       if (passengerNotification && passengerNotification.isPushEnabled) {
-//         sendMessage(
-//           passengerNotification.pushToken,
-//           "Trip Canceled",
-//           "Passenger Notification" + msg
-//         );
-//       }
-
-//       // Cancelled Trip Mail
-//       const companyData = (
-//         await admin.database().ref("company-details").once("value")
-//       ).val();
-
-//       const vehicleType = (
-//         await admin
-//           .database()
-//           .ref("fleets/" + after.vehicleType)
-//           .once("value")
-//       ).val();
-
-//       let emailHeader = (
-//         await admin.database().ref("email-templates/header").once("value")
-//       ).val();
-
-//       emailHeader.template = emailHeader.template.replace(
-//         new RegExp("{date}", "g"),
-//         moment(after.departDate).format("Do MMM YYYY hh:mm A")
-//       );
-//       emailHeader.template = emailHeader.template.replace(
-//         new RegExp("{companyLogo}", "g"),
-//         companyData.logo
-//       );
-//       emailHeader.template = emailHeader.template.replace(
-//         new RegExp("{companyName}", "g"),
-//         companyData.name.toUpperCase()
-//       );
-
-//       let emailBody = (
-//         await admin.database().ref("email-templates/ride-offer").once("value")
-//       ).val();
-
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{title}", "g"),
-//         "Ride Cancelled"
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{routeMap}", "g"),
-//         "https://wrapspeedtaxi.com/public/email_images/map.png"
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{driverName}", "g"),
-//         driver.name
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{driverPic}", "g"),
-//         driver.profilePic ? driver.profilePic : companyData.logo
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{fleetType}", "g"),
-//         vehicleType.name
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{fleetDetail}", "g"),
-//         driver.brand + " - " + driver.model
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{fromAddress}", "g"),
-//         after.origin.address
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{toAddress}", "g"),
-//         after.destination.address
-//       );
-//       emailBody.template = emailBody.template.replace(
-//         new RegExp("{companyWeb}", "g"),
-//         "https://wrapspeedtaxi.com/"
-//       );
-
-//       let emailFooter = (
-//         await admin.database().ref("email-templates/footer").once("value")
-//       ).val();
-
-//       let header = ejs.render(emailHeader.template);
-//       let body = ejs.render(emailBody.template);
-//       let footer = ejs.render(emailFooter.template);
-
-//       let emailData = {
-//         pageTitle: "Ride Cancelled",
-//         header,
-//         body,
-//         footer,
-//       };
-
-//       ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-//         if (err) {
-//           functions.logger.error(err);
-//         } else {
-//           let callBack = function (err1, info) {
-//             if (err1) {
-//               functions.logger.error(err1);
-//             } else {
-//               functions.logger.info(info);
-//             }
-//           };
-//           sendEmail(
-//             {
-//               to: passenger.email,
-//               bcc: driver.email,
-//               subject: "Ride Cancelled",
-//               html,
-//             },
-//             callBack
-//           );
-//         }
-//       });
-//       // Cancelled Trip Mail Ends
-//     }
-//   });
-
-exports.sendSOSMessage = functions.https.onRequest((req, res) => {
+exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Credentials", "true"); // vital
   if (req.method === "OPTIONS") {
@@ -1488,41 +885,55 @@ exports.sendSOSMessage = functions.https.onRequest((req, res) => {
       const type = req.body.type;
       const id = req.body.id;
       if (type == "passenger") {
-        admin
+        let passengerEmergencyObject = (await admin
           .database()
-          .ref("passengers/" + id)
-          .once("value")
-          .then((snapshot) => {
-            const passenger = snapshot.val();
-            if (passenger.emergency_mobile) {
+          .ref("passenger-emergency/" + id)
+          .once("value")).val();
+        const passenger = (
+          await admin
+            .database()
+            .ref("passengers/" + id)
+            .once("value")
+        ).val();
+        if(passengerEmergencyObject) {
+          for (const [key, value] of Object.entries(passengerEmergencyObject)) {
+            if (value.mobile) {
               const msg1 =
                 "Hello " +
-                passenger.emergency_name +
+                value.name +
                 ", Testing SOS Message For Passenger " +
                 passenger.name +
                 " With TripId : " +
                 tripId;
-              sendSMS("+91" + passenger.emergency_mobile, msg1);
+              sendSMS("+91" + value.mobile, msg1);
             }
-          });
+          }
+        }
       } else {
-        admin
+        let driverEmergencyObject = (await admin
           .database()
-          .ref("drivers/" + id)
-          .once("value")
-          .then((snapshot) => {
-            const driver = snapshot.val();
-            if (driver.emergency_mobile) {
-              const msg2 =
+          .ref("driver-emergency/" + id)
+          .once("value")).val();
+        const driver = (
+          await admin
+            .database()
+            .ref("drivers/" + id)
+            .once("value")
+        ).val();
+        if(driverEmergencyObject) {
+          for (const [key, value] of Object.entries(driverEmergencyObject)) {
+            if (value.mobile) {
+              const msg1 =
                 "Hello " +
-                driver.emergency_name +
+                value.name +
                 ", Testing SOS Message For Driver " +
                 driver.name +
                 " With TripId : " +
                 tripId;
-              sendSMS("+91" + driver.emergency_mobile, msg2);
+              sendSMS("+91" + value.mobile, msg1);
             }
-          });
+          }
+        }
       }
       admin
         .database()
@@ -2290,7 +1701,7 @@ exports.complaintResponseTrigger = functions.database
   });
 
 
-  exports.tripPassengerCreateTrigger = functions.database
+exports.tripPassengerCreateTrigger = functions.database
   .ref("/trip-passengers/{tripPassengerId}")
   .onCreate(async function (snapshot, context) {
     const original = snapshot.val();
@@ -2398,6 +1809,24 @@ exports.tripPassengerUpdateTrigger = functions.database
           "Booking Accepted",
           "Passenger Notification : " + msgPassenger
         );
+      }
+
+      let passengerEmergencyObject = (await admin
+        .database()
+        .ref("passenger-emergency/" + id)
+        .orderByChild("alwaysShared")
+        .equalTo(true)
+        .once("value")).val();
+      functions.logger.info("Passengers Always Shared")
+      functions.logger.info(passengerEmergencyObject)
+      if(passengerEmergencyObject) {
+        for (const [key1, value] of Object.entries(passengerEmergencyObject)) {
+          if (value.mobile) {
+            const msg1 =  "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/" +
+            encodeURI(btoa(key))
+            sendSMS("+91" + value.mobile, msg1);
+          }
+        }
       }
 
       // Send Ride Accepted Email
