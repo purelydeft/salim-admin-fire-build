@@ -95,6 +95,26 @@ function sendEmail(emailData, callBack) {
   }
 }
 
+function calcCrow(lat1, lon1, lat2, lon2) {
+  let R = 6371; // km
+  let dLat = toRad(lat2 - lat1);
+  let dLon = toRad(lon2 - lon1);
+  lat1 = toRad(lat1);
+  lat2 = toRad(lat2);
+
+  let a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+  let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  let d = R * c;
+
+  return d;
+}
+
+// Converts numeric degrees to radians
+function toRad(value) {
+  return (value * Math.PI) / 180;
+}
 /************************************Live DB Functions*************************************************/
 
 exports.sendPush = functions.database
@@ -2269,10 +2289,8 @@ exports.complaintResponseTrigger = functions.database
     });
   });
 
-/************************************End Live DB Functions*************************************************/
-/************************************Testing DB Functions*************************************************/
 
-exports.tripPassengerCreateTriggerDev = functions.database
+  exports.tripPassengerCreateTrigger = functions.database
   .ref("/trip-passengers/{tripPassengerId}")
   .onCreate(async function (snapshot, context) {
     const original = snapshot.val();
@@ -2290,19 +2308,21 @@ exports.tripPassengerCreateTriggerDev = functions.database
         .once("value")
     ).val();
     const msgDriver = "New Ride Available";
-    if (driver.isPhoneVerified) {
-      sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
-    }
-    if (driverNotification.isPushEnabled) {
-      sendMessage(
-        driverNotification.pushToken,
-        "New Ride Available",
-        "Driver Notification : " + msgDriver
-      );
+    if (driver.alwaysOn) {
+      if (driver.isPhoneVerified) {
+        sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
+      }
+      if (driverNotification.isPushEnabled) {
+        sendMessage(
+          driverNotification.pushToken,
+          "New Ride Available",
+          "Driver Notification : " + msgDriver
+        );
+      }
     }
   });
 
-exports.tripPassengerUpdateTriggerDev = functions.database
+exports.tripPassengerUpdateTrigger = functions.database
   .ref("/trip-passengers/{tripPassengerId}")
   .onUpdate(async function (snapshot, context) {
     const key = context.params.tripPassengerId;
@@ -2347,38 +2367,6 @@ exports.tripPassengerUpdateTriggerDev = functions.database
         .once("value")
     ).val();
 
-    if(after.status == TRIP_STATUS_CANCELED || after.status == TRIP_STATUS_FINISHED) {
-      const tripData = (
-        await admin.database().ref("trips/" + after.tripId).once("value")
-      ).val();
-  
-      if (tripData.status == TRIP_STATUS_GOING) {
-        admin
-          .database()
-          .ref("trip-passengers")
-          .orderByChild("tripId")
-          .equalTo(after.tripId)
-          .once("value", function (snap) {
-            let count = 0;
-            if (snap) {
-              snap.forEach(function (tripPassenger) {
-                let status = tripPassenger.val().status;
-                if(status == TRIP_STATUS_ACCEPTED || status == TRIP_STATUS_WAITING || status == TRIP_STATUS_GOING ) {
-                  count++;
-                };
-              });
-            }
-            
-            if(count == 0) {
-              admin
-              .database()
-              .ref("/trips/" + after.tripId)
-              .update({ status: TRIP_STATUS_FINISHED });
-            }
-          });
-      }
-    }
-
     if (
       before.status == TRIP_STATUS_PENDING &&
       after.status == TRIP_STATUS_ACCEPTED
@@ -2419,7 +2407,7 @@ exports.tripPassengerUpdateTriggerDev = functions.database
 
       emailHeader.template = emailHeader.template.replace(
         new RegExp("{date}", "g"),
-        moment(original.departDate).format("Do MMM YYYY hh:mm A")
+        moment(after.departDate).format("Do MMM YYYY hh:mm A")
       );
       emailHeader.template = emailHeader.template.replace(
         new RegExp("{companyLogo}", "g"),
@@ -2460,11 +2448,11 @@ exports.tripPassengerUpdateTriggerDev = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{fromAddress}", "g"),
-        original.origin.address
+        after.origin.address
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{toAddress}", "g"),
-        original.destination.address
+        after.destination.address
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
@@ -2909,5 +2897,97 @@ exports.tripPassengerUpdateTriggerDev = functions.database
       // Cancelled Trip Mail Ends
     }
   });
+
+exports.tripPassengerSharingUpdateTrigger = functions.database
+  .ref("/trip-passengers/{tripPassengerId}")
+  .onUpdate(async function (snapshot, context) {
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+    const driverLocation = (
+      await admin
+        .database()
+        .ref("driver-locations/" + after.driverId)
+        .once("value")
+    ).val();
+
+    if (after.status != before.status) {
+      let trips = [];
+      admin
+        .database()
+        .ref("trip-passengers")
+        .orderByChild("tripId")
+        .equalTo(after.tripId)
+        .once("value", function(snaps) {
+          console.log(snaps);
+          if (snaps) {
+            snaps.forEach(function(snap) {
+              let trip = { key: snap.key, ...snap.val() };
+              functions.logger.info("Trips");
+              functions.logger.info(trip)
+              if (
+                trip.status == TRIP_STATUS_ACCEPTED
+              ) {
+                trips.push({
+                  key: trip.key,
+                  distance:
+                    calcCrow(
+                      driverLocation.lat,
+                      driverLocation.lng,
+                      trip.origin.lat,
+                      trip.origin.lon
+                    ) + trip.distance.distance,
+                });
+              } else if( trip.status == TRIP_STATUS_WAITING) {
+                trips.push({
+                  key: trip.key,
+                  distance:
+                    calcCrow(
+                      driverLocation.lat,
+                      driverLocation.lng,
+                      trip.origin.lat,
+                      trip.origin.lon
+                    ),
+                });
+              } else if (trip.status == TRIP_STATUS_GOING) {
+                trips.push({
+                  key: trip.key,
+                  distance: calcCrow(
+                    driverLocation.lat,
+                    driverLocation.lng,
+                    trip.destination.lat,
+                    trip.destination.lon
+                  ),
+                });
+              }
+            });
+           
+            functions.logger.info(trips);
+            if (trips.length > 0) {
+              trips = trips.sort((a, b) => a.distance - b.distance);
+              admin
+                .database()
+                .ref("/trips/" + after.tripId)
+                .update({ isCurrent: trips[0].key });
+            } else {
+              admin
+                .database()
+                .ref("/trips/" + after.tripId)
+                .update({ status: TRIP_STATUS_FINISHED });
+            }
+          } else {
+            admin
+              .database()
+              .ref("/trips/" + after.tripId)
+              .update({ status: TRIP_STATUS_FINISHED });
+          }
+        });
+    }
+  });
+
+
+
+/************************************End Live DB Functions*************************************************/
+/************************************Testing DB Functions*************************************************/
+
 
 /************************************End Testing Functions*************************************************/
