@@ -885,55 +885,59 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
       const type = req.body.type;
       const id = req.body.id;
       if (type == "passenger") {
-        let passengerEmergencyObject = (await admin
-          .database()
-          .ref("passenger-emergency/" + id)
-          .once("value")).val();
         const passenger = (
           await admin
             .database()
             .ref("passengers/" + id)
             .once("value")
         ).val();
-        if(passengerEmergencyObject) {
-          for (const [key, value] of Object.entries(passengerEmergencyObject)) {
-            if (value.mobile) {
-              const msg1 =
-                "Hello " +
-                value.name +
-                ", Testing SOS Message For Passenger " +
-                passenger.name +
-                " With TripId : " +
-                tripId;
-              sendSMS("+91" + value.mobile, msg1);
-            }
-          }
-        }
-      } else {
-        let driverEmergencyObject = (await admin
+        admin
           .database()
-          .ref("driver-emergency/" + id)
-          .once("value")).val();
+          .ref("passenger-emergency/" + id)
+          .once("value", function (snaps) {
+            if (snaps && snaps.length > 0) {
+              snaps.forEach(function (element) {
+                let data = { key: element.key, ...element.val() };
+                if (data.mobile) {
+                  const msg1 =
+                    "Hello " +
+                    data.name +
+                    ", Testing SOS Message For Passenger " +
+                    passenger.name +
+                    " With TripId : " +
+                    tripId;
+                  sendSMS("+91" + data.mobile, msg1);
+                }
+              });
+            }
+          });
+      } else {
         const driver = (
           await admin
             .database()
             .ref("drivers/" + id)
             .once("value")
         ).val();
-        if(driverEmergencyObject) {
-          for (const [key, value] of Object.entries(driverEmergencyObject)) {
-            if (value.mobile) {
-              const msg1 =
-                "Hello " +
-                value.name +
-                ", Testing SOS Message For Driver " +
-                driver.name +
-                " With TripId : " +
-                tripId;
-              sendSMS("+91" + value.mobile, msg1);
+        admin
+          .database()
+          .ref("driver-emergency/" + id)
+          .once("value", function (snaps) {
+            if (snaps && snaps.length > 0) {
+              snaps.forEach(function (element) {
+                let data = { key: element.key, ...element.val() };
+                if (data.mobile) {
+                  const msg1 =
+                    "Hello " +
+                    data.name +
+                    ", Testing SOS Message For Driver " +
+                    driver.name +
+                    " With TripId : " +
+                    tripId;
+                  sendSMS("+91" + driver.mobile, msg1);
+                }
+              });
             }
-          }
-        }
+          });
       }
       admin
         .database()
@@ -1700,7 +1704,6 @@ exports.complaintResponseTrigger = functions.database
     });
   });
 
-
 exports.tripPassengerCreateTrigger = functions.database
   .ref("/trip-passengers/{tripPassengerId}")
   .onCreate(async function (snapshot, context) {
@@ -1811,23 +1814,24 @@ exports.tripPassengerUpdateTrigger = functions.database
         );
       }
 
-      let passengerEmergencyObject = (await admin
+      admin
         .database()
         .ref("passenger-emergency/" + id)
         .orderByChild("alwaysShared")
         .equalTo(true)
-        .once("value")).val();
-      functions.logger.info("Passengers Always Shared")
-      functions.logger.info(passengerEmergencyObject)
-      if(passengerEmergencyObject) {
-        for (const [key1, value] of Object.entries(passengerEmergencyObject)) {
-          if (value.mobile) {
-            const msg1 =  "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/" +
-            encodeURI(btoa(key))
-            sendSMS("+91" + value.mobile, msg1);
+        .once("value", function (snaps) {
+          if (snaps && snaps.length > 0) {
+            snaps.forEach(function (element) {
+              let data = { key: element.key, ...element.val() };
+              if (data.mobile) {
+                const msg1 =
+                  "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/" +
+                  encodeURI(btoa(key));
+                sendSMS("+91" + data.mobile, msg1);
+              }
+            });
           }
-        }
-      }
+        });
 
       // Send Ride Accepted Email
       let emailHeader = (
@@ -2346,16 +2350,14 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
         .ref("trip-passengers")
         .orderByChild("tripId")
         .equalTo(after.tripId)
-        .once("value", function(snaps) {
+        .once("value", function (snaps) {
           console.log(snaps);
           if (snaps) {
-            snaps.forEach(function(snap) {
+            snaps.forEach(function (snap) {
               let trip = { key: snap.key, ...snap.val() };
               functions.logger.info("Trips");
-              functions.logger.info(trip)
-              if (
-                trip.status == TRIP_STATUS_ACCEPTED
-              ) {
+              functions.logger.info(trip);
+              if (trip.status == TRIP_STATUS_ACCEPTED) {
                 trips.push({
                   key: trip.key,
                   distance:
@@ -2366,16 +2368,15 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
                       trip.origin.lon
                     ) + trip.distance.distance,
                 });
-              } else if( trip.status == TRIP_STATUS_WAITING) {
+              } else if (trip.status == TRIP_STATUS_WAITING) {
                 trips.push({
                   key: trip.key,
-                  distance:
-                    calcCrow(
-                      driverLocation.lat,
-                      driverLocation.lng,
-                      trip.origin.lat,
-                      trip.origin.lon
-                    ),
+                  distance: calcCrow(
+                    driverLocation.lat,
+                    driverLocation.lng,
+                    trip.origin.lat,
+                    trip.origin.lon
+                  ),
                 });
               } else if (trip.status == TRIP_STATUS_GOING) {
                 trips.push({
@@ -2389,7 +2390,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
                 });
               }
             });
-           
+
             functions.logger.info(trips);
             if (trips.length > 0) {
               trips = trips.sort((a, b) => a.distance - b.distance);
@@ -2413,10 +2414,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
     }
   });
 
-
-
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
-
 
 /************************************End Testing Functions*************************************************/
