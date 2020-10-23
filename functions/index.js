@@ -1956,6 +1956,27 @@ exports.tripPassengerUpdateTrigger = functions.database
           "Passenger Notification : " + msg1
         );
       }
+
+      if(after.tripType == 1) {
+        setTimeout(async () => {
+          let initialStatus = after.status;
+          const record = (
+            await admin
+              .database()
+              .ref("trip-passengers/" + key)
+              .once("value")
+          ).val();
+
+          if(initialStatus == record.status) {
+            await admin
+              .database()
+              .ref("trip-passengers/" + key).update({
+                status : TRIP_STATUS_CANCELED,
+                modified : Date.now()
+              });
+          }
+        }, 120000); 
+      }
     } else if (
       after.status == TRIP_STATUS_GOING &&
       before.status == TRIP_STATUS_WAITING
