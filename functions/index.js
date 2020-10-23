@@ -2125,7 +2125,7 @@ exports.tripPassengerUpdateTrigger = functions.database
               let data = { key: element.key, ...element.val() };
               if (data.mobile) {
                 const msg1 =
-                  "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/" +
+                  "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
                   encodeURI(btoa(key));
                 sendSMS("+91" + data.mobile, msg1);
               }
@@ -2275,7 +2275,7 @@ exports.tripPassengerUpdateTrigger = functions.database
                 modified : Date.now()
               });
           }
-        }, 120000); 
+        }, 300000); 
       }
     } else if (
       after.status == TRIP_STATUS_GOING &&
