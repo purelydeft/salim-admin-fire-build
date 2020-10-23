@@ -1137,6 +1137,161 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
   }
 });
 
+// exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
+//   res.set("Access-Control-Allow-Origin", "*");
+//   res.set("Access-Control-Allow-Credentials", "true"); // vital
+//   if (req.method === "OPTIONS") {
+//     // Send response to OPTIONS requests
+//     res.set("Access-Control-Allow-Methods", "GET, POST");
+//     res.set("Access-Control-Allow-Headers", "Content-Type");
+//     res.set("Access-Control-Max-Age", "3600");
+//     res.status(204).send("");
+//   } else {
+//     if (req.body.tripPassengerId && req.body.type) {
+//       const businessData = (
+//         await admin.database().ref("business-management").once("value")
+//       ).val();
+
+//       const companyData = (
+//         await admin.database().ref("company-details").once("value")
+//       ).val();
+
+//       const tripData = (
+//         await admin
+//           .database()
+//           .ref("trip-passengers/" + req.body.tripPassengerId)
+//           .once("value")
+//       ).val();
+//       if (tripData) {
+//         const vehicleType = (
+//           await admin
+//             .database()
+//             .ref("fleets/" + tripData.vehicleType)
+//             .once("value")
+//         ).val();
+
+//         const passengerData = (
+//           await admin
+//             .database()
+//             .ref("passengers/" + tripData.passengerId)
+//             .once("value")
+//         ).val();
+
+//         const driverData = (
+//           await admin
+//             .database()
+//             .ref("drivers/" + tripData.driverId)
+//             .once("value")
+//         ).val();
+
+//         let splitPayments = [];
+//         let amount = tripData.fareDetails.finalFare;
+//         if (tripData.waitingCharges) amount += tripData.waitingCharges;
+//         let finalFare = amount;
+
+//         const splits = (
+//           await admin
+//             .database()
+//             .ref("trip-split-payment/" + req.body.tripPassengerId)
+//             .once("value")
+//         ).val();
+//         if (splits != null) {
+//           for (const [key, value] of Object.entries(splits)) {
+//             splitPayments.push(value);
+//           }
+//           splitPayments = splitPayments.reverse();
+//         }
+
+//         amount = amount / (splitPayments.length + 1);
+
+//         let emailData = {
+//           companyWeb: "https://wrapspeedtaxi.com",
+//           title: "Invoice For Trip : #" + req.body.tripPassengerId,
+//           tripDate: moment(new Date(tripData.pickedUpAt)).format(
+//             "Do MMMM YYYY"
+//           ),
+//           companyLogo: companyData.logo,
+//           companyName: companyData.name,
+//           currency: businessData.currency,
+//           finalFare: finalFare.toFixed(2),
+//           tripId: req.body.tripPassengerId,
+//           routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
+//           riderName: passengerData.name,
+//           riderNumber: passengerData.phoneNumber,
+//           driverName: driverData.name,
+//           driverProfilePic: driverData.profilePic
+//             ? driverData.profilePic
+//             : companyData.logo,
+//           fleetType: vehicleType.name,
+//           fleetDetail: driverData.brand + " - " + driverData.model,
+//           fromTime: moment(new Date(tripData.pickedUpAt)).format("hh:mm A"),
+//           fromAddress: tripData.origin.address,
+//           endTime: moment(new Date(tripData.droppedOffAt)).format("hh:mm A"),
+//           toAddress: tripData.destination.address,
+//           baseFare: tripData.fareDetails.baseFare,
+//           taxFare: tripData.fareDetails.tax,
+//           paidBy: tripData.paymentMethod,
+//           paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
+//           splittedAmount: amount.toFixed(2),
+//           splitAccounts: splitPayments,
+//         };
+//         functions.logger.info(emailData);
+
+//         ejs.renderFile(__dirname + "/invoice.ejs", emailData, function (
+//           err,
+//           html
+//         ) {
+//           if (err) {
+//             functions.logger.error(err);
+//             return res.status(200).json({
+//               status: -1,
+//               msg: "Unable To Send Invoice Via Mail.",
+//             });
+//           } else {
+//             let callBack = function (err1, info) {
+//               if (err1) {
+//                 functions.logger.error(err1);
+//                 return res.status(200).json({
+//                   status: -1,
+//                   msg: "Error occured while sending mail.",
+//                 });
+//               } else {
+//                 functions.logger.info(info);
+//                 return res.status(200).json({
+//                   status: 1,
+//                   msg: "Mail sent successfully.",
+//                 });
+//               }
+//             };
+//             sendEmail(
+//               {
+//                 to:
+//                   req.body.type == "passenger"
+//                     ? passengerData.email
+//                     : driverData.email,
+//                 bcc: null,
+//                 subject: "Invoice For Trip : #" + req.body.tripPassengerId,
+//                 html,
+//               },
+//               callBack
+//             );
+//           }
+//         });
+//       } else {
+//         return res.status(200).json({
+//           status: -1,
+//           msg: "Trip Data Not Found",
+//         });
+//       }
+//     } else {
+//       return res.status(200).json({
+//         status: -1,
+//         msg: "Either Type Or Trip Id Not Found",
+//       });
+//     }
+//   }
+// });
+
 exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Credentials", "true"); // vital
@@ -1204,43 +1359,188 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         amount = amount / (splitPayments.length + 1);
 
-        let emailData = {
-          companyWeb: "https://wrapspeedtaxi.com",
-          title: "Invoice For Trip : #" + req.body.tripPassengerId,
-          tripDate: moment(new Date(tripData.pickedUpAt)).format(
+        // Header Fixed
+        let emailHeader = (
+          await admin.database().ref("email-templates/header").once("value")
+        ).val();
+        emailHeader.template = emailHeader.template.replace(
+          new RegExp("{date}", "g"),
+          moment(new Date(tripData.pickedUpAt)).format(
             "Do MMMM YYYY"
-          ),
-          companyLogo: companyData.logo,
-          companyName: companyData.name,
-          currency: businessData.currency,
-          finalFare: finalFare.toFixed(2),
-          tripId: req.body.tripPassengerId,
-          routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
-          riderName: passengerData.name,
-          riderNumber: passengerData.phoneNumber,
-          driverName: driverData.name,
-          driverProfilePic: driverData.profilePic
-            ? driverData.profilePic
-            : companyData.logo,
-          fleetType: vehicleType.name,
-          fleetDetail: driverData.brand + " - " + driverData.model,
-          fromTime: moment(new Date(tripData.pickedUpAt)).format("hh:mm A"),
-          fromAddress: tripData.origin.address,
-          endTime: moment(new Date(tripData.droppedOffAt)).format("hh:mm A"),
-          toAddress: tripData.destination.address,
-          baseFare: tripData.fareDetails.baseFare,
-          taxFare: tripData.fareDetails.tax,
-          paidBy: tripData.paymentMethod,
-          paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
-          splittedAmount: amount.toFixed(2),
-          splitAccounts: splitPayments,
-        };
-        functions.logger.info(emailData);
+          )
+        );
+        emailHeader.template = emailHeader.template.replace(
+          new RegExp("{companyLogo}", "g"),
+          companyData.logo
+        );
+        emailHeader.template = emailHeader.template.replace(
+          new RegExp("{companyName}", "g"),
+          companyData.name.toUpperCase()
+        );
+        // Header Fixed
 
-        ejs.renderFile(__dirname + "/invoice.ejs", emailData, function (
-          err,
-          html
-        ) {
+        // Split Payment Rows
+        let splitRows = "";
+        splitPayments.forEach(async splitPayment => {
+          let splitBody = (
+            await admin.database().ref("email-templates/invoice-split-payment-row").once("value")
+          ).val();
+          splitBody.template = splitBody.template.replace(
+            new RegExp("{name}", "g"),
+            splitPayment.name
+          );
+          splitBody.template = splitBody.template.replace(
+            new RegExp("{phoneNumber}", "g"),
+            splitPayment.mobile
+          );
+          splitBody.template = splitBody.template.replace(
+            new RegExp("{currency}", "g"),
+            businessData.currency
+          );
+          splitBody.template = splitBody.template.replace(
+            new RegExp("{splittedAmount}", "g"),
+            amount.toFixed(2)
+          );
+          splitRows += splitBody.template;
+        });
+        // Ends Split Payment Rows
+  
+        let emailBody = (
+          await admin.database().ref("email-templates/invoice").once("value")
+        ).val();
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{currency}", "g"),
+          businessData.currency
+        );
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{finalFare}", "g"),
+          finalFare.toFixed(2)
+        );
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{tripId}", "g"),
+          req.body.tripPassengerId
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{riderName}", "g"),
+          passengerData.name
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{riderNumber}", "g"),
+          passengerData.phoneNumber
+        );
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{routeMap}", "g"),
+          "https://wrapspeedtaxi.com/public/email_images/map.png"
+        );
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{driverProfilePic}", "g"),
+          driverData.profilePic ? driverData.profilePic : companyData.logo
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{driverName}", "g"),
+          driverData.name
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{fleetType}", "g"),
+          vehicleType.name
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{fleetDetail}", "g"),
+          driverData.brand + " - " + driverData.model
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{fromTime}", "g"),
+          moment(new Date(tripData.pickedUpAt)).format("hh:mm A")
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{fromAddress}", "g"),
+          tripData.origin.address
+        ); 
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{endTime}", "g"),
+          moment(new Date(tripData.droppedOffAt)).format("hh:mm A")
+        );
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{toAddress}", "g"),
+          tripData.destination.address
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{baseFare}", "g"),
+          tripData.fareDetails.baseFare.toFixed(2)
+        );
+        
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{taxFare}", "g"),
+          tripData.fareDetails.tax.toFixed(2)
+        );
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{paidBy}", "g"),
+          tripData.paymentMethod
+        );  
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{splittedAmount}", "g"),
+          amount.toFixed(2)
+        );
+
+        if(tripData.paymentMethod == 'cash') {
+          emailBody.template = emailBody.template.replace(
+            new RegExp("{paidByImage}", "g"),
+            "https://wrapspeedtaxi.com/public/email_images/cash.png"
+          );
+        } else if(tripData.paymentMethod == 'wallet') {
+          emailBody.template = emailBody.template.replace(
+            new RegExp("{paidByImage}", "g"),
+            "https://wrapspeedtaxi.com/public/email_images/wallet.png"
+          );
+        } else {
+          emailBody.template = emailBody.template.replace(
+            new RegExp("{paidByImage}", "g"),
+            "https://wrapspeedtaxi.com/public/email_images/card.png"
+          );
+        }
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{splitRows}", "g"),
+          splitRows
+        ); 
+
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{companyWeb}", "g"),
+          "https://wrapspeedtaxi.com/"
+        );
+  
+        let emailFooter = (
+          await admin.database().ref("email-templates/footer").once("value")
+        ).val();
+
+        let header = ejs.render(emailHeader.template);
+        let body = ejs.render(emailBody.template);
+        let footer = ejs.render(emailFooter.template);
+
+        let emailData = {
+          pageTitle: "Invoice For Trip : #" + req.body.tripPassengerId,
+          header,
+          body,
+          footer,
+        };
+        ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
           if (err) {
             functions.logger.error(err);
             return res.status(200).json({
@@ -1265,7 +1565,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
             };
             sendEmail(
               {
-                to:
+                to: 
                   req.body.type == "passenger"
                     ? passengerData.email
                     : driverData.email,
@@ -2101,37 +2401,191 @@ exports.tripPassengerUpdateTrigger = functions.database
 
       amount = amount / (splitPayments.length + 1);
 
+
+
+      // Header Fixed
+      let emailHeader = (
+        await admin.database().ref("email-templates/header").once("value")
+      ).val();
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{date}", "g"),
+        moment(new Date(after.pickedUpAt)).format(
+          "Do MMMM YYYY"
+        )
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyLogo}", "g"),
+        companyData.logo
+      );
+      emailHeader.template = emailHeader.template.replace(
+        new RegExp("{companyName}", "g"),
+        companyData.name.toUpperCase()
+      );
+      // Header Fixed
+
+      // Split Payment Rows
+      let splitRows = "";
+      splitPayments.forEach(async splitPayment => {
+        let splitBody = (
+          await admin.database().ref("email-templates/invoice-split-payment-row").once("value")
+        ).val();
+        splitBody.template = splitBody.template.replace(
+          new RegExp("{name}", "g"),
+          splitPayment.name
+        );
+        splitBody.template = splitBody.template.replace(
+          new RegExp("{phoneNumber}", "g"),
+          splitPayment.mobile
+        );
+        splitBody.template = splitBody.template.replace(
+          new RegExp("{currency}", "g"),
+          businessData.currency
+        );
+        splitBody.template = splitBody.template.replace(
+          new RegExp("{splittedAmount}", "g"),
+          amount.toFixed(2)
+        );
+        splitRows += splitBody.template;
+      });
+      // Ends Split Payment Rows
+
+      let emailBody = (
+        await admin.database().ref("email-templates/invoice").once("value")
+      ).val();
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{currency}", "g"),
+        businessData.currency
+      );
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{finalFare}", "g"),
+        finalFare.toFixed(2)
+      );
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{tripId}", "g"),
+        key
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{riderName}", "g"),
+        passenger.name
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{riderNumber}", "g"),
+        passenger.phoneNumber
+      );
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{routeMap}", "g"),
+        "https://wrapspeedtaxi.com/public/email_images/map.png"
+      );
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{driverProfilePic}", "g"),
+        driver.profilePic ? driver.profilePic : companyData.logo
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{driverName}", "g"),
+        driver.name
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fleetType}", "g"),
+        vehicleType.name
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fleetDetail}", "g"),
+        driver.brand + " - " + driver.model
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fromTime}", "g"),
+        moment(new Date(after.pickedUpAt)).format("hh:mm A")
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{fromAddress}", "g"),
+        after.origin.address
+      ); 
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{endTime}", "g"),
+        moment(new Date(after.droppedOffAt)).format("hh:mm A")
+      );
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{toAddress}", "g"),
+        after.destination.address
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{baseFare}", "g"),
+        after.fareDetails.baseFare.toFixed(2)
+      );
+      
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{taxFare}", "g"),
+        after.fareDetails.tax.toFixed(2)
+      );
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{paidBy}", "g"),
+        after.paymentMethod
+      );  
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{splittedAmount}", "g"),
+        amount.toFixed(2)
+      );
+
+      if(after.paymentMethod == 'cash') {
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{paidByImage}", "g"),
+          "https://wrapspeedtaxi.com/public/email_images/cash.png"
+        );
+      } else if(after.paymentMethod == 'wallet') {
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{paidByImage}", "g"),
+          "https://wrapspeedtaxi.com/public/email_images/wallet.png"
+        );
+      } else {
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{paidByImage}", "g"),
+          "https://wrapspeedtaxi.com/public/email_images/card.png"
+        );
+      }
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{splitRows}", "g"),
+        splitRows
+      ); 
+
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
+
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
+      ).val();
+
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
+
       let emailData = {
-        companyWeb: "https://wrapspeedtaxi.com",
-        title: "Invoice For Trip : #" + key,
-        tripDate: moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY"),
-        companyLogo: companyData.logo,
-        companyName: companyData.name,
-        currency: businessData.currency,
-        finalFare: finalFare.toFixed(2),
-        tripId: key,
-        routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
-        riderName: passenger.name,
-        riderNumber: passenger.phoneNumber,
-        driverName: driver.name,
-        driverProfilePic: driver.profilePic
-          ? driver.profilePic
-          : companyData.logo,
-        fleetType: vehicleType.name,
-        fleetDetail: driver.brand + " - " + driver.model,
-        fromTime: moment(new Date(after.pickedUpAt)).format("hh:mm A"),
-        fromAddress: after.origin.address,
-        endTime: moment(new Date(after.droppedOffAt)).format("hh:mm A"),
-        toAddress: after.destination.address,
-        baseFare: after.fareDetails.baseFare,
-        taxFare: after.fareDetails.tax,
-        paidBy: after.paymentMethod,
-        paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
-        splittedAmount: amount.toFixed(2),
-        splitAccounts: splitPayments,
+        pageTitle: "Invoice For Trip : #" + key,
+        header,
+        body,
+        footer,
       };
 
-      ejs.renderFile(__dirname + "/invoice.ejs", emailData, async function (
+      ejs.renderFile(__dirname + "/email.ejs", emailData, async function (
         err,
         html
       ) {
