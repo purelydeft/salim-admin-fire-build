@@ -2275,7 +2275,7 @@ exports.tripPassengerUpdateTrigger = functions.database
                 modified : Date.now()
               });
           }
-        }, 300000); 
+        }, 600000); 
       }
     } else if (
       after.status == TRIP_STATUS_GOING &&
