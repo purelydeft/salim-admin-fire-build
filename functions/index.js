@@ -1137,161 +1137,6 @@ exports.validateReferralCode = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
-//   res.set("Access-Control-Allow-Origin", "*");
-//   res.set("Access-Control-Allow-Credentials", "true"); // vital
-//   if (req.method === "OPTIONS") {
-//     // Send response to OPTIONS requests
-//     res.set("Access-Control-Allow-Methods", "GET, POST");
-//     res.set("Access-Control-Allow-Headers", "Content-Type");
-//     res.set("Access-Control-Max-Age", "3600");
-//     res.status(204).send("");
-//   } else {
-//     if (req.body.tripPassengerId && req.body.type) {
-//       const businessData = (
-//         await admin.database().ref("business-management").once("value")
-//       ).val();
-
-//       const companyData = (
-//         await admin.database().ref("company-details").once("value")
-//       ).val();
-
-//       const tripData = (
-//         await admin
-//           .database()
-//           .ref("trip-passengers/" + req.body.tripPassengerId)
-//           .once("value")
-//       ).val();
-//       if (tripData) {
-//         const vehicleType = (
-//           await admin
-//             .database()
-//             .ref("fleets/" + tripData.vehicleType)
-//             .once("value")
-//         ).val();
-
-//         const passengerData = (
-//           await admin
-//             .database()
-//             .ref("passengers/" + tripData.passengerId)
-//             .once("value")
-//         ).val();
-
-//         const driverData = (
-//           await admin
-//             .database()
-//             .ref("drivers/" + tripData.driverId)
-//             .once("value")
-//         ).val();
-
-//         let splitPayments = [];
-//         let amount = tripData.fareDetails.finalFare;
-//         if (tripData.waitingCharges) amount += tripData.waitingCharges;
-//         let finalFare = amount;
-
-//         const splits = (
-//           await admin
-//             .database()
-//             .ref("trip-split-payment/" + req.body.tripPassengerId)
-//             .once("value")
-//         ).val();
-//         if (splits != null) {
-//           for (const [key, value] of Object.entries(splits)) {
-//             splitPayments.push(value);
-//           }
-//           splitPayments = splitPayments.reverse();
-//         }
-
-//         amount = amount / (splitPayments.length + 1);
-
-//         let emailData = {
-//           companyWeb: "https://wrapspeedtaxi.com",
-//           title: "Invoice For Trip : #" + req.body.tripPassengerId,
-//           tripDate: moment(new Date(tripData.pickedUpAt)).format(
-//             "Do MMMM YYYY"
-//           ),
-//           companyLogo: companyData.logo,
-//           companyName: companyData.name,
-//           currency: businessData.currency,
-//           finalFare: finalFare.toFixed(2),
-//           tripId: req.body.tripPassengerId,
-//           routeMap: "https://wrapspeedtaxi.com/public/email_images/map.png",
-//           riderName: passengerData.name,
-//           riderNumber: passengerData.phoneNumber,
-//           driverName: driverData.name,
-//           driverProfilePic: driverData.profilePic
-//             ? driverData.profilePic
-//             : companyData.logo,
-//           fleetType: vehicleType.name,
-//           fleetDetail: driverData.brand + " - " + driverData.model,
-//           fromTime: moment(new Date(tripData.pickedUpAt)).format("hh:mm A"),
-//           fromAddress: tripData.origin.address,
-//           endTime: moment(new Date(tripData.droppedOffAt)).format("hh:mm A"),
-//           toAddress: tripData.destination.address,
-//           baseFare: tripData.fareDetails.baseFare,
-//           taxFare: tripData.fareDetails.tax,
-//           paidBy: tripData.paymentMethod,
-//           paidByImage: "https://wrapspeedtaxi.com/public/email_images/cash.png",
-//           splittedAmount: amount.toFixed(2),
-//           splitAccounts: splitPayments,
-//         };
-//         functions.logger.info(emailData);
-
-//         ejs.renderFile(__dirname + "/invoice.ejs", emailData, function (
-//           err,
-//           html
-//         ) {
-//           if (err) {
-//             functions.logger.error(err);
-//             return res.status(200).json({
-//               status: -1,
-//               msg: "Unable To Send Invoice Via Mail.",
-//             });
-//           } else {
-//             let callBack = function (err1, info) {
-//               if (err1) {
-//                 functions.logger.error(err1);
-//                 return res.status(200).json({
-//                   status: -1,
-//                   msg: "Error occured while sending mail.",
-//                 });
-//               } else {
-//                 functions.logger.info(info);
-//                 return res.status(200).json({
-//                   status: 1,
-//                   msg: "Mail sent successfully.",
-//                 });
-//               }
-//             };
-//             sendEmail(
-//               {
-//                 to:
-//                   req.body.type == "passenger"
-//                     ? passengerData.email
-//                     : driverData.email,
-//                 bcc: null,
-//                 subject: "Invoice For Trip : #" + req.body.tripPassengerId,
-//                 html,
-//               },
-//               callBack
-//             );
-//           }
-//         });
-//       } else {
-//         return res.status(200).json({
-//           status: -1,
-//           msg: "Trip Data Not Found",
-//         });
-//       }
-//     } else {
-//       return res.status(200).json({
-//         status: -1,
-//         msg: "Either Type Or Trip Id Not Found",
-//       });
-//     }
-//   }
-// });
-
 exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Credentials", "true"); // vital
@@ -1638,7 +1483,7 @@ exports.complaintCreateTrigger = functions.database
     for (const [key, value] of Object.entries(admins)) {
       adminData = value;
     }
-
+    functions.logger.info(adminData)
     const companyData = (
       await admin.database().ref("company-details").once("value")
     ).val();
@@ -1667,9 +1512,13 @@ exports.complaintCreateTrigger = functions.database
       new RegExp("{title}", "g"),
       "Complaint Registered"
     );
+    let content = "Complaint Registered By ";
+    content += original.driverId ? "Driver : " : "Passenger : ";
+    content += user.name.toUpperCase() + "<br/>";
+    content += "<b>Subject Of Complaint</b> : " + original.subject; 
     emailBody.template = emailBody.template.replace(
       new RegExp("{content}", "g"),
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+      content
     );
     emailBody.template = emailBody.template.replace(
       new RegExp("{companyWeb}", "g"),
@@ -1761,134 +1610,89 @@ exports.complaintUpdateTrigger = functions.database
         companyData.name.toUpperCase()
       );
 
-      let emailBody = (
-        await admin
-          .database()
-          .ref("email-templates/complaint-processing")
-          .once("value")
-      ).val();
-      emailBody.template = emailBody.template.replace(
-        new RegExp("{title}", "g"),
-        "Complaint Is Under Processing"
-      );
-      emailBody.template = emailBody.template.replace(
-        new RegExp("{content}", "g"),
-        "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
-      );
-      emailBody.template = emailBody.template.replace(
-        new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
-      );
-      let emailFooter = (
-        await admin.database().ref("email-templates/footer").once("value")
-      ).val();
-
-      let header = ejs.render(emailHeader.template);
-      let body = ejs.render(emailBody.template);
-      let footer = ejs.render(emailFooter.template);
-
-      let emailData = {
-        pageTitle: "Complaint Is Under Processing",
-        header,
-        body,
-        footer,
-      };
-
-      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-        if (err) {
-          functions.logger.error(err);
+      let emailBody;
+      if(before.status != after.status) {
+        let content = "Complaint Registered By ";
+        let title = "";
+        if(after.status == 0) {
+          emailBody = (
+            await admin
+              .database()
+              .ref("email-templates/complaint-processing")
+              .once("value")
+          ).val()
+          title = "Complaint Is Marked Pending";
+        } else if(after.status == 1) {
+          emailBody = (
+            await admin
+              .database()
+              .ref("email-templates/complaint-processing")
+              .once("value")
+          ).val()
+          title =  "Complaint Is Marked Under Processing";
         } else {
-          let callBack = function (err1, info) {
-            if (err1) {
-              functions.logger.error(err1);
-            } else {
-              functions.logger.info(info);
-            }
-          };
-          sendEmail(
-            {
-              to: user.email,
-              bcc: adminData.email,
-              subject: "Complaint Is Under Processing",
-              html,
-            },
-            callBack
-          );
+          emailBody = (
+            await admin
+              .database()
+              .ref("email-templates/complaint-resolved")
+              .once("value")
+          ).val()
+          title =   "Complaint Is Marked Resolved";
         }
-      });
-    } else if (after.status == "2" && before.status != "2") {
-      let emailHeader = (
-        await admin.database().ref("email-templates/header").once("value")
-      ).val();
+        content += original.driverId ? "Driver : " : "Passenger : ";
+        content += user.name.toUpperCase() + "<br/>";
+        content += "<b>Subject Of Complaint</b> : " + original.subject + "<br/>"; 
+        content +=  title;
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{title}", "g"),
+          title
+        );
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{content}", "g"),
+          content
+        );
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{companyWeb}", "g"),
+          "https://wrapspeedtaxi.com/"
+        );
+        let emailFooter = (
+          await admin.database().ref("email-templates/footer").once("value")
+        ).val();
 
-      emailHeader.template = emailHeader.template.replace(
-        new RegExp("{date}", "g"),
-        moment().format("Do MMM YYYY hh:mm A")
-      );
-      emailHeader.template = emailHeader.template.replace(
-        new RegExp("{companyLogo}", "g"),
-        companyData.logo
-      );
-      emailHeader.template = emailHeader.template.replace(
-        new RegExp("{companyName}", "g"),
-        companyData.name.toUpperCase()
-      );
+        let header = ejs.render(emailHeader.template);
+        let body = ejs.render(emailBody.template);
+        let footer = ejs.render(emailFooter.template);
 
-      let emailBody = (
-        await admin
-          .database()
-          .ref("email-templates/complaint-resolved")
-          .once("value")
-      ).val();
-      emailBody.template = emailBody.template.replace(
-        new RegExp("{title}", "g"),
-        "Complaint Is Resolved"
-      );
-      emailBody.template = emailBody.template.replace(
-        new RegExp("{content}", "g"),
-        "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
-      );
-      emailBody.template = emailBody.template.replace(
-        new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
-      );
-      let emailFooter = (
-        await admin.database().ref("email-templates/footer").once("value")
-      ).val();
+        let emailData = {
+          pageTitle: "Complaint Is Under Processing",
+          header,
+          body,
+          footer,
+        };
 
-      let header = ejs.render(emailHeader.template);
-      let body = ejs.render(emailBody.template);
-      let footer = ejs.render(emailFooter.template);
-
-      let emailData = {
-        pageTitle: "Complaint Is Resolved",
-        header,
-        body,
-        footer,
-      };
-
-      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-        if (err) {
-          functions.logger.error(err);
-        } else {
-          let callBack = function (err1, info) {
-            if (err1) {
-              functions.logger.error(err1);
-            } else {
-              functions.logger.info(info);
-            }
-          };
-          sendEmail(
-            {
-              to: user.email,
-              bcc: adminData.email,
-              subject: "Complaint Is Resolved",
-              html,
-            },
-            callBack
-          );
-        }
-      });
+        ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+          if (err) {
+            functions.logger.error(err);
+          } else {
+            let callBack = function (err1, info) {
+              if (err1) {
+                functions.logger.error(err1);
+              } else {
+                functions.logger.info(info);
+              }
+            };
+            sendEmail(
+              {
+                to: user.email,
+                bcc: adminData.email,
+                subject: title,
+                html,
+              },
+              callBack
+            );
+          }
+        });
+      }
     }
   });
 
@@ -1903,16 +1707,38 @@ exports.complaintResponseTrigger = functions.database
         .ref("complaints/" + original.complaintId)
         .once("value")
     ).val();
-    const type = complaintData.driverId ? "drivers" : "passengers";
-    const userId = complaintData.driverId
-      ? complaintData.driverId
-      : complaintData.passengerId;
+    let type = complaintData.driverId ? "drivers" : "passengers";
+    let userId = complaintData.driverId ? complaintData.driverId : complaintData.passengerId;
     const user = (
       await admin
         .database()
         .ref(type + "/" + userId)
         .once("value")
     ).val();
+    let sender;
+    if(original.adminId) {
+      sender = (
+        await admin
+          .database()
+          .ref('admins' + "/" + original.adminId)
+          .once("value")
+      ).val();
+    } else if(original.driverId) {
+      sender = (
+        await admin
+          .database()
+          .ref('drivers' + "/" + original.driverId)
+          .once("value")
+      ).val();
+    } else {
+      sender = (
+        await admin
+          .database()
+          .ref('passengers' + "/" + original.passengerId)
+          .once("value")
+      ).val();
+    }
+
     const admins = await admin
       .database()
       .ref("admins")
@@ -1946,21 +1772,30 @@ exports.complaintResponseTrigger = functions.database
       new RegExp("{companyName}", "g"),
       companyData.name.toUpperCase()
     );
-
+    
+    const title = "New Response To Complaint : #" + id;
+    
     let emailBody = (
       await admin
         .database()
         .ref("email-templates/new-complaint-response")
         .once("value")
     ).val();
+    
     emailBody.template = emailBody.template.replace(
       new RegExp("{title}", "g"),
-      "New Complaint Reply"
+      title
     );
+
+    let content = "New Response To Complaint : #" + id +  "<br/>";
+    content += "<b>Sent From  : </b> : " + sender.name + "<br/>"; 
+    content += "<b>Description : </b> : " + original.description + "<br/>"; 
+
     emailBody.template = emailBody.template.replace(
       new RegExp("{content}", "g"),
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+      content
     );
+
     emailBody.template = emailBody.template.replace(
       new RegExp("{companyWeb}", "g"),
       "https://wrapspeedtaxi.com/"
@@ -1975,7 +1810,7 @@ exports.complaintResponseTrigger = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle: "New Complaint Reply",
+      pageTitle: title,
       header,
       body,
       footer,
@@ -1994,8 +1829,8 @@ exports.complaintResponseTrigger = functions.database
         };
         sendEmail(
           {
-            to: original.adminId ? user.email : "patrickphp3@gmail.com",
-            subject: "New Complaint Reply",
+            to: original.adminId ? user.email : adminData.email,
+            subject: title,
             html,
           },
           callBack
