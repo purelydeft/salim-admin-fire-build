@@ -35,6 +35,8 @@ const TRIP_STATUS_CANCELED = "canceled";
 
 admin.initializeApp();
 
+function btoa(str) { return Buffer.from(str).toString('base64'); }
+
 function sendMessage(token, title, message) {
   if (token === undefined || token === "" || token === null) {
     return true;
@@ -71,7 +73,7 @@ function sendSMS(to, mesage) {
       to: to,
     })
     .then((message) => {
-      functions.logger.info(message.sid);
+      // functions.logger.info(message);
     })
     .catch((err) => functions.logger.error(err));
   } catch(err) {
@@ -278,7 +280,7 @@ exports.sendPushNews = functions.database
   });
 
 exports.deleteRider = functions.database
-  .ref("/passengers/{id}")
+  .ref("passengers/{id}")
   .onDelete(async function (change, context) {
     const id = context.params.id;
     await admin
@@ -321,7 +323,7 @@ exports.deleteRider = functions.database
   });
 
 exports.deleteDriver = functions.database
-  .ref("/drivers/{id}")
+  .ref("drivers/{id}")
   .onDelete(async function (change, context) {
     const id = context.params.id;
     await admin
@@ -350,7 +352,7 @@ exports.deleteDriver = functions.database
   });
 
 exports.deleteAdmin = functions.database
-  .ref("/admins/{id}")
+  .ref("admins/{id}")
   .onDelete(function (change, context) {
     const id = context.params.id;
     admin
@@ -367,7 +369,7 @@ exports.deleteAdmin = functions.database
   });
 
 exports.createAdmin = functions.database
-  .ref("/admins/{id}")
+  .ref("admins/{id}")
   .onCreate(async function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
@@ -468,7 +470,7 @@ exports.createAdmin = functions.database
   });
 
 exports.updateAdmin = functions.database
-  .ref("/admins/{id}")
+  .ref("admins/{id}")
   .onUpdate(function (snapshot, context) {
     const key = context.params.id;
     const before = snapshot.before.val();
@@ -499,7 +501,7 @@ exports.updateAdmin = functions.database
   });
 
 exports.createDriver = functions.database
-  .ref("/drivers/{id}")
+  .ref("drivers/{id}")
   .onCreate(async function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
@@ -630,7 +632,7 @@ exports.createDriver = functions.database
   });
 
 exports.updateDriver = functions.database
-  .ref("/drivers/{id}")
+  .ref("drivers/{id}")
   .onUpdate(async function (snapshot, context) {
     const key = context.params.id;
     const before = snapshot.before.val();
@@ -680,7 +682,7 @@ exports.updateDriver = functions.database
   });
 
 exports.createPassenger = functions.database
-  .ref("/passengers/{id}")
+  .ref("passengers/{id}")
   .onCreate(async function (snapshot, context) {
     const key = context.params.id;
     const original = snapshot.val();
@@ -828,7 +830,7 @@ exports.createPassenger = functions.database
   });
 
 exports.updatePassenger = functions.database
-  .ref("/passengers/{id}")
+  .ref("passengers/{id}")
   .onUpdate(async function (snapshot, context) {
     const key = context.params.id;
     const before = snapshot.before.val();
@@ -897,26 +899,22 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             .ref("passengers/" + id)
             .once("value")
         ).val();
-        admin
-          .database()
-          .ref("passenger-emergency/" + id)
-          .once("value", function (snaps) {
-            if (snaps && snaps.length > 0) {
-              snaps.forEach(function (element) {
-                let data = { key: element.key, ...element.val() };
-                if (data.mobile) {
-                  const msg1 =
-                    "Hello " +
-                    data.name +
-                    ", Testing SOS Message For Passenger " +
-                    passenger.name +
-                    " With TripId : " +
-                    tripId;
-                  sendSMS("+91" + data.mobile, msg1);
-                }
-              });
-            }
-          });
+
+        let passengerEmergency = (await admin.database().ref("passenger-emergency/" + id).once("value")).val()
+
+        for(const [key, value] of Object.entries(passengerEmergency)) {
+          if (value.mobile) {
+            const msg1 =
+              "Hello " +
+              value.name +
+              ", Testing SOS Message For Passenger " +
+              passenger.name +
+              " With TripId : " +
+              tripId;
+            sendSMS("+91" + value.mobile, msg1);
+          }
+        }
+        
       } else {
         const driver = (
           await admin
@@ -924,26 +922,21 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             .ref("drivers/" + id)
             .once("value")
         ).val();
-        admin
-          .database()
-          .ref("driver-emergency/" + id)
-          .once("value", function (snaps) {
-            if (snaps && snaps.length > 0) {
-              snaps.forEach(function (element) {
-                let data = { key: element.key, ...element.val() };
-                if (data.mobile) {
-                  const msg1 =
-                    "Hello " +
-                    data.name +
-                    ", Testing SOS Message For Driver " +
-                    driver.name +
-                    " With TripId : " +
-                    tripId;
-                  sendSMS("+91" + driver.mobile, msg1);
-                }
-              });
-            }
-          });
+
+        let driverEmergency = (await admin.database().ref("driver-emergency/" + id).once("value")).val()
+
+        for(const [key, value] of Object.entries(driverEmergency)) {
+          if (value.mobile) {
+            const msg1 =
+              "Hello " +
+              value.name +
+              ", Testing SOS Message For Driver " +
+              driver.name +
+              " With TripId : " +
+              tripId;
+            sendSMS("+91" + value.mobile, msg1);
+          }
+        }
       }
       admin
         .database()
@@ -1466,7 +1459,7 @@ exports.scheduledFunction = functions.pubsub
   });
 
 exports.complaintCreateTrigger = functions.database
-  .ref("/complaints/{id}")
+  .ref("complaints/{id}")
   .onCreate(async function (snapshot, context) {
     const id = context.params.id;
     const original = snapshot.val();
@@ -1570,7 +1563,7 @@ exports.complaintCreateTrigger = functions.database
   });
 
 exports.complaintUpdateTrigger = functions.database
-  .ref("/complaints/{id}")
+  .ref("complaints/{id}")
   .onUpdate(async function (snapshot, context) {
     const id = context.params.id;
     const before = snapshot.before.val();
@@ -1703,7 +1696,7 @@ exports.complaintUpdateTrigger = functions.database
   });
 
 exports.complaintResponseTrigger = functions.database
-  .ref("/complaint-responses/{id}")
+  .ref("complaint-responses/{id}")
   .onCreate(async function (snapshot, context) {
     const id = context.params.id;
     const original = snapshot.val();
@@ -1846,7 +1839,7 @@ exports.complaintResponseTrigger = functions.database
   });
 
 exports.tripPassengerCreateTrigger = functions.database
-  .ref("/trip-passengers/{tripPassengerId}")
+  .ref("trip-passengers/{tripPassengerId}")
   .onCreate(async function (snapshot, context) {
     const original = snapshot.val();
     const driverId = original.driverId;
@@ -1878,14 +1871,13 @@ exports.tripPassengerCreateTrigger = functions.database
   });
 
 exports.tripPassengerUpdateTrigger = functions.database
-  .ref("/trip-passengers/{tripPassengerId}")
+  .ref("trip-passengers/{tripPassengerId}")
   .onUpdate(async function (snapshot, context) {
     const key = context.params.tripPassengerId;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
     const driverId = after.driverId;
     const passengerId = after.passengerId;
-
     const driver = (
       await admin
         .database()
@@ -1930,7 +1922,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       if (driver.isPhoneVerified) {
         sendSMS("+91" + driver.phoneNumber, "Driver Sms : " + msgDriver);
       }
-      if (driverNotification.isPushEnabled) {
+      if (driverNotification && driverNotification.isPushEnabled) {
         sendMessage(
           driverNotification.pushToken,
           "Booking Accepted",
@@ -1955,43 +1947,16 @@ exports.tripPassengerUpdateTrigger = functions.database
         );
       }
 
-      admin
-        .database()
-        .ref("passenger-emergency/" + passengerId)
-        .orderByChild("alwaysShared")
-        .equalTo(true)
-        .once("value", function (snaps) {
-          if (snaps && snaps.length > 0) {
-            snaps.forEach(function (element) {
-              let data = { key: element.key, ...element.val() };
-              if (data.mobile) {
-                const msg1 =
-                  "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
-                  encodeURI(btoa(key));
-                sendSMS("+91" + data.mobile, msg1);
-              }
-            });
-          }
-        });
+      let passengerEmergency = (await admin.database().ref("passenger-emergency/" + passengerId).orderByChild('alwaysShared').equalTo(true).once("value")).val()
 
-      // admin
-      //   .database()
-      //   .ref("driver-emergency/" + driverId)
-      //   .orderByChild("alwaysShared")
-      //   .equalTo(true)
-      //   .once("value", function (snaps) {
-      //     if (snaps && snaps.length > 0) {
-      //       snaps.forEach(function (element) {
-      //         let data = { key: element.key, ...element.val() };
-      //         if (data.mobile) {
-      //           const msg1 =
-      //             "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
-      //             encodeURI(btoa(key));
-      //           sendSMS("+91" + data.mobile, msg1);
-      //         }
-      //       });
-      //     }
-      //   });
+      for(const [key1, value] of Object.entries(passengerEmergency)) {
+        if (value.mobile && value.alwaysShared) {
+          const msg1 =
+            "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
+            encodeURIComponent(btoa(key));
+          sendSMS("+91" + value.mobile, msg1);
+        }
+      }
 
       // Send Ride Accepted Email
       let emailHeader = (
@@ -2169,7 +2134,7 @@ exports.tripPassengerUpdateTrigger = functions.database
     ) {
       admin
         .database()
-        .ref("/trip-passengers")
+        .ref("trip-passengers")
         .orderByChild("driverId")
         .equalTo(after.driverId)
         .once("value", function (snap) {
@@ -2191,12 +2156,12 @@ exports.tripPassengerUpdateTrigger = functions.database
             if (!isNaN(rating)) {
               admin
                 .database()
-                .ref("/drivers/" + original.driverId)
+                .ref("drivers/" + original.driverId)
                 .update({ rating: rating.toFixed(1) });
             } else {
               admin
                 .database()
-                .ref("/drivers/" + original.driverId)
+                .ref("drivers/" + original.driverId)
                 .update({ rating: 0 });
             }
           }
@@ -2667,7 +2632,7 @@ exports.tripPassengerUpdateTrigger = functions.database
   });
 
 exports.tripPassengerSharingUpdateTrigger = functions.database
-  .ref("/trip-passengers/{tripPassengerId}")
+  .ref("trip-passengers/{tripPassengerId}")
   .onUpdate(async function (snapshot, context) {
     const before = snapshot.before.val();
     const after = snapshot.after.val();
@@ -2693,12 +2658,9 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
         .orderByChild("tripId")
         .equalTo(after.tripId)
         .once("value", function (snaps) {
-          console.log(snaps);
           if (snaps) {
             snaps.forEach(function (snap) {
               let trip = { key: snap.key, ...snap.val() };
-              functions.logger.info("Trips");
-              functions.logger.info(trip);
               if (trip.status == TRIP_STATUS_ACCEPTED) {
                 trips.push({
                   key: trip.key,
@@ -2735,8 +2697,6 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
                 });
               }
             });
-
-            functions.logger.info(trips);
             if (trips.length > 0) {
               trips = trips.sort((a, b) => a.distance - b.distance);
               let seatsOccupied = 0;
@@ -2746,18 +2706,18 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               let seats = tripData.totalSeats - seatsOccupied;
               admin
                 .database()
-                .ref("/trips/" + after.tripId)
+                .ref("trips/" + after.tripId)
                 .update({ isCurrent: trips[0].key, availableSeats : seats });
             } else {
               admin
                 .database()
-                .ref("/trips/" + after.tripId)
+                .ref("trips/" + after.tripId)
                 .update({ status: TRIP_STATUS_FINISHED });
             }
           } else {
             admin
               .database()
-              .ref("/trips/" + after.tripId)
+              .ref("trips/" + after.tripId)
               .update({ status: TRIP_STATUS_FINISHED });
           }
         });
