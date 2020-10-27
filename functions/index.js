@@ -394,80 +394,80 @@ exports.createAdmin = functions.database
           return false;
         });
     }
-    // Send Welcome Email
-    const companyData = (
-      await admin.database().ref("company-details").once("value")
-    ).val();
+    // // Send Welcome Email
+    // const companyData = (
+    //   await admin.database().ref("company-details").once("value")
+    // ).val();
 
-    let emailHeader = (
-      await admin.database().ref("email-templates/header").once("value")
-    ).val();
+    // let emailHeader = (
+    //   await admin.database().ref("email-templates/header").once("value")
+    // ).val();
 
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{date}", "g"),
-      moment().format("Do MMM YYYY hh:mm A")
-    );
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{companyLogo}", "g"),
-      companyData.logo
-    );
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{companyName}", "g"),
-      companyData.name.toUpperCase()
-    );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{date}", "g"),
+    //   moment().format("Do MMM YYYY hh:mm A")
+    // );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{companyLogo}", "g"),
+    //   companyData.logo
+    // );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{companyName}", "g"),
+    //   companyData.name.toUpperCase()
+    // );
 
-    let emailBody = (
-      await admin.database().ref("email-templates/welcome").once("value")
-    ).val();
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{title}", "g"),
-      "Welcome User : " + original.name.toUpperCase()
-    );
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{content}", "g"),
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
-    );
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{companyWeb}", "g"),
-      "https://wrapspeedtaxi.com/"
-    );
-    let emailFooter = (
-      await admin.database().ref("email-templates/footer").once("value")
-    ).val();
+    // let emailBody = (
+    //   await admin.database().ref("email-templates/welcome").once("value")
+    // ).val();
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{title}", "g"),
+    //   "Welcome User : " + original.name.toUpperCase()
+    // );
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{content}", "g"),
+    //   "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    // );
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{companyWeb}", "g"),
+    //   "https://wrapspeedtaxi.com/"
+    // );
+    // let emailFooter = (
+    //   await admin.database().ref("email-templates/footer").once("value")
+    // ).val();
 
-    let header = ejs.render(emailHeader.template);
-    let body = ejs.render(emailBody.template);
-    let footer = ejs.render(emailFooter.template);
+    // let header = ejs.render(emailHeader.template);
+    // let body = ejs.render(emailBody.template);
+    // let footer = ejs.render(emailFooter.template);
 
-    let emailData = {
-      pageTitle: "Welcome To " + companyData.name.toUpperCase(),
-      header,
-      body,
-      footer,
-    };
+    // let emailData = {
+    //   pageTitle: "Welcome To " + companyData.name.toUpperCase(),
+    //   header,
+    //   body,
+    //   footer,
+    // };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-      if (err) {
-        functions.logger.error(err);
-      } else {
-        let callBack = function (err1, info) {
-          if (err1) {
-            functions.logger.error(err1);
-          } else {
-            functions.logger.info(info);
-          }
-        };
-        sendEmail(
-          {
-            to: original.email,
-            subject: "Welcome To " + companyData.name.toUpperCase(),
-            html,
-          },
-          callBack
-        );
-      }
-    });
-    // Send Welcome Email Ends
+    // ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+    //   if (err) {
+    //     functions.logger.error(err);
+    //   } else {
+    //     let callBack = function (err1, info) {
+    //       if (err1) {
+    //         functions.logger.error(err1);
+    //       } else {
+    //         functions.logger.info(info);
+    //       }
+    //     };
+    //     sendEmail(
+    //       {
+    //         to: original.email,
+    //         subject: "Welcome To " + companyData.name.toUpperCase(),
+    //         html,
+    //       },
+    //       callBack
+    //     );
+    //   }
+    // });
+    // // Send Welcome Email Ends
   });
 
 exports.updateAdmin = functions.database
@@ -529,7 +529,7 @@ exports.createDriver = functions.database
         original.providerId == "facebook.com")
     ) {
       const user = await admin.auth().getUser(key);
-      if (original.isEmailVerified && !user.emailVerified) {
+      if (original.isEmailVerified && !user.emailVerified) {  
         admin
           .auth()
           .updateUser(key, {
@@ -556,80 +556,80 @@ exports.createDriver = functions.database
         isPushEnabled: true,
       });
 
-    // Send Registration Mail
-    const companyData = (
-      await admin.database().ref("company-details").once("value")
-    ).val();
+    // // Send Registration Mail
+    // const companyData = (
+    //   await admin.database().ref("company-details").once("value")
+    // ).val();
 
-    let emailHeader = (
-      await admin.database().ref("email-templates/header").once("value")
-    ).val();
+    // let emailHeader = (
+    //   await admin.database().ref("email-templates/header").once("value")
+    // ).val();
 
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{date}", "g"),
-      moment().format("Do MMM YYYY hh:mm A")
-    );
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{companyLogo}", "g"),
-      companyData.logo
-    );
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{companyName}", "g"),
-      companyData.name.toUpperCase()
-    );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{date}", "g"),
+    //   moment().format("Do MMM YYYY hh:mm A")
+    // );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{companyLogo}", "g"),
+    //   companyData.logo
+    // );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{companyName}", "g"),
+    //   companyData.name.toUpperCase()
+    // );
 
-    let emailBody = (
-      await admin.database().ref("email-templates/welcome").once("value")
-    ).val();
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{title}", "g"),
-      "Welcome Driver : " + original.name.toUpperCase()
-    );
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{content}", "g"),
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
-    );
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{companyWeb}", "g"),
-      "https://wrapspeedtaxi.com/"
-    );
-    let emailFooter = (
-      await admin.database().ref("email-templates/footer").once("value")
-    ).val();
+    // let emailBody = (
+    //   await admin.database().ref("email-templates/welcome").once("value")
+    // ).val();
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{title}", "g"),
+    //   "Welcome To " + companyData.name.toUpperCase()
+    // );
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{content}", "g"),
+    //   "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    // );
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{companyWeb}", "g"),
+    //   "https://wrapspeedtaxi.com/"
+    // );
+    // let emailFooter = (
+    //   await admin.database().ref("email-templates/footer").once("value")
+    // ).val();
 
-    let header = ejs.render(emailHeader.template);
-    let body = ejs.render(emailBody.template);
-    let footer = ejs.render(emailFooter.template);
+    // let header = ejs.render(emailHeader.template);
+    // let body = ejs.render(emailBody.template);
+    // let footer = ejs.render(emailFooter.template);
 
-    let emailData = {
-      pageTitle: "Welcome To " + companyData.name.toUpperCase(),
-      header,
-      body,
-      footer,
-    };
+    // let emailData = {
+    //   pageTitle: "Welcome To " + companyData.name.toUpperCase(),
+    //   header,
+    //   body,
+    //   footer,
+    // };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-      if (err) {
-        functions.logger.error(err);
-      } else {
-        let callBack = function (err1, info) {
-          if (err1) {
-            functions.logger.error(err1);
-          } else {
-            functions.logger.info(info);
-          }
-        };
-        sendEmail(
-          {
-            to: original.email,
-            subject: "Welcome To " + companyData.name.toUpperCase(),
-            html,
-          },
-          callBack
-        );
-      }
-    });
-    // Send Registration Mail Ends
+    // ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+    //   if (err) {
+    //     functions.logger.error(err);
+    //   } else {
+    //     let callBack = function (err1, info) {
+    //       if (err1) {
+    //         functions.logger.error(err1);
+    //       } else {
+    //         functions.logger.info(info);
+    //       }
+    //     };
+    //     sendEmail(
+    //       {
+    //         to: original.email,
+    //         subject: "Welcome To " + companyData.name.toUpperCase(),
+    //         html,
+    //       },
+    //       callBack
+    //     );
+    //   }
+    // });
+    // // Send Registration Mail Ends
   });
 
 exports.updateDriver = functions.database
@@ -649,27 +649,32 @@ exports.updateDriver = functions.database
       updateData.email = after.email;
       updateData.emailVerified = false;
       updateCheck = true;
+    } else if (after.isEmailVerified && !user.emailVerified) {
+      updateData.emailVerified = true;
+      updateCheck = true;
     }
+
     if (after.password && !user.passwordHash) {
       updateData.password = after.password;
       updateCheck = true;
     }
-    if (after.isEmailVerified && !user.emailVerified) {
-      updateData.emailVerified = true;
-      updateCheck = true;
-    }
+   
     if (updateCheck) {
       admin
         .auth()
         .updateUser(key, updateData)
         .then(() => {
           functions.logger.info("Updated: " + key);
+          let updatedData = {};
           if (after.password) {
-            admin
-              .database()
-              .ref("drivers/" + key + "/password")
-              .remove();
+            updatedData.password = null;
           }
+          if(!updateData.emailVerified) {
+            updatedData.isEmailVerified = false;
+          }
+          admin
+            .database()
+            .ref("drivers/" + key).update(updatedData)
         })
         .catch((err) => {
           functions.logger.info(err);
@@ -749,80 +754,80 @@ exports.createPassenger = functions.database
         isDonateAdmin: false,
       });
 
-    // Send Welcome Email
-    const companyData = (
-      await admin.database().ref("company-details").once("value")
-    ).val();
+    // // Send Welcome Email
+    // const companyData = (
+    //   await admin.database().ref("company-details").once("value")
+    // ).val();
 
-    let emailHeader = (
-      await admin.database().ref("email-templates/header").once("value")
-    ).val();
+    // let emailHeader = (
+    //   await admin.database().ref("email-templates/header").once("value")
+    // ).val();
 
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{date}", "g"),
-      moment().format("Do MMM YYYY hh:mm A")
-    );
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{companyLogo}", "g"),
-      companyData.logo
-    );
-    emailHeader.template = emailHeader.template.replace(
-      new RegExp("{companyName}", "g"),
-      companyData.name.toUpperCase()
-    );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{date}", "g"),
+    //   moment().format("Do MMM YYYY hh:mm A")
+    // );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{companyLogo}", "g"),
+    //   companyData.logo
+    // );
+    // emailHeader.template = emailHeader.template.replace(
+    //   new RegExp("{companyName}", "g"),
+    //   companyData.name.toUpperCase()
+    // );
 
-    let emailBody = (
-      await admin.database().ref("email-templates/welcome").once("value")
-    ).val();
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{title}", "g"),
-      "Welcome Rider : " + original.name.toUpperCase()
-    );
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{content}", "g"),
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
-    );
-    emailBody.template = emailBody.template.replace(
-      new RegExp("{companyWeb}", "g"),
-      "https://wrapspeedtaxi.com/"
-    );
-    let emailFooter = (
-      await admin.database().ref("email-templates/footer").once("value")
-    ).val();
+    // let emailBody = (
+    //   await admin.database().ref("email-templates/welcome").once("value")
+    // ).val();
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{title}", "g"),
+    //   "Welcome To " + companyData.name.toUpperCase()
+    // );
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{content}", "g"),
+    //   "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+    // );
+    // emailBody.template = emailBody.template.replace(
+    //   new RegExp("{companyWeb}", "g"),
+    //   "https://wrapspeedtaxi.com/"
+    // );
+    // let emailFooter = (
+    //   await admin.database().ref("email-templates/footer").once("value")
+    // ).val();
 
-    let header = ejs.render(emailHeader.template);
-    let body = ejs.render(emailBody.template);
-    let footer = ejs.render(emailFooter.template);
+    // let header = ejs.render(emailHeader.template);
+    // let body = ejs.render(emailBody.template);
+    // let footer = ejs.render(emailFooter.template);
 
-    let emailData = {
-      pageTitle: "Welcome To " + companyData.name.toUpperCase(),
-      header,
-      body,
-      footer,
-    };
+    // let emailData = {
+    //   pageTitle: "Welcome To " + companyData.name.toUpperCase(),
+    //   header,
+    //   body,
+    //   footer,
+    // };
 
-    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-      if (err) {
-        functions.logger.error(err);
-      } else {
-        let callBack = function (err1, info) {
-          if (err1) {
-            functions.logger.error(err1);
-          } else {
-            functions.logger.info(info);
-          }
-        };
-        sendEmail(
-          {
-            to: original.email,
-            subject: "Welcome To " + companyData.name.toUpperCase(),
-            html,
-          },
-          callBack
-        );
-      }
-    });
-    // Send Welcome Email Ends
+    // ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+    //   if (err) {
+    //     functions.logger.error(err);
+    //   } else {
+    //     let callBack = function (err1, info) {
+    //       if (err1) {
+    //         functions.logger.error(err1);
+    //       } else {
+    //         functions.logger.info(info);
+    //       }
+    //     };
+    //     sendEmail(
+    //       {
+    //         to: original.email,
+    //         subject: "Welcome To " + companyData.name.toUpperCase(),
+    //         html,
+    //       },
+    //       callBack
+    //     );
+    //   }
+    // });
+    // // Send Welcome Email Ends
   });
 
 exports.updatePassenger = functions.database
@@ -842,27 +847,31 @@ exports.updatePassenger = functions.database
       updateData.email = after.email;
       updateData.emailVerified = false;
       updateCheck = true;
+    } else if (after.isEmailVerified && !user.emailVerified) {
+      updateData.emailVerified = true;
+      updateCheck = true;
     }
     if (after.password && !user.passwordHash) {
       updateData.password = after.password;
       updateCheck = true;
     }
-    if (after.isEmailVerified && !user.emailVerified) {
-      updateData.emailVerified = true;
-      updateCheck = true;
-    }
+   
     if (updateCheck) {
       admin
         .auth()
         .updateUser(key, updateData)
         .then(() => {
           functions.logger.info("Updated: " + key);
+          let updatedData = {};
           if (after.password) {
-            admin
-              .database()
-              .ref("passengers/" + key + "/password")
-              .remove();
+            updatedData.password = null;
           }
+          if(!updateData.emailVerified) {
+            updatedData.isEmailVerified = false;
+          }
+          admin
+            .database()
+            .ref("drivers/" + key).update(updatedData)
         })
         .catch((err) => {
           functions.logger.info(err);
