@@ -18,14 +18,11 @@ const mailingDetails = {
     pass: "Informatics@123",
   },
 };
+const liveAccountSid = "ACfd767804b4b2df47eccf2aae03b2aaad";
+const liveAuthToken = "2d9a5f84e3a3f16e3d46d22bb62a4e60";
 
-const testAccountSid = "AC02867768a4ff76032b4c45ed8c7c8b46";
-const testAuthToken = "0d292a1bd4bb7ff9be50704ba4ea9e35";
-const liveAccountSid = "AC0aab684fa3476ca118cc1390759fd6d2";
-const liveAuthToken = "b7c788365cf1387b0ee67f0d1d9d5993";
-
-const twilioNumber = "+12029534688";
-const twilioService = "VAc000c44d7d97e4ec29ab055936655883";
+const twilioNumber = "+17632252752";
+const twilioService = "MG12608acdbaf92ba85c6972bc2fa6a3d7";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
 
@@ -66,20 +63,20 @@ function sendMessage(token, title, message) {
 }
 
 function sendSMS(to, mesage) {
-  // try {
-  //   client.messages
-  //   .create({
-  //     body: mesage,
-  //     from: twilioNumber,
-  //     to: to,
-  //   })
-  //   .then((message) => {
-  //     functions.logger.info(message.sid);
-  //   })
-  //   .catch((err) => functions.logger.error(err));
-  // } catch(err) {
-  //   functions.logger.error(err)
-  // }
+  try {
+    client.messages
+    .create({
+      body: mesage,
+      from: twilioNumber,
+      to: to,
+    })
+    .then((message) => {
+      functions.logger.info(message.sid);
+    })
+    .catch((err) => functions.logger.error(err));
+  } catch(err) {
+    functions.logger.error(err)
+  }
 }
 
 function sendEmail(emailData, callBack) {
@@ -1960,7 +1957,7 @@ exports.tripPassengerUpdateTrigger = functions.database
 
       admin
         .database()
-        .ref("passenger-emergency/" + id)
+        .ref("passenger-emergency/" + passengerId)
         .orderByChild("alwaysShared")
         .equalTo(true)
         .once("value", function (snaps) {
@@ -1976,6 +1973,25 @@ exports.tripPassengerUpdateTrigger = functions.database
             });
           }
         });
+
+      // admin
+      //   .database()
+      //   .ref("driver-emergency/" + driverId)
+      //   .orderByChild("alwaysShared")
+      //   .equalTo(true)
+      //   .once("value", function (snaps) {
+      //     if (snaps && snaps.length > 0) {
+      //       snaps.forEach(function (element) {
+      //         let data = { key: element.key, ...element.val() };
+      //         if (data.mobile) {
+      //           const msg1 =
+      //             "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
+      //             encodeURI(btoa(key));
+      //           sendSMS("+91" + data.mobile, msg1);
+      //         }
+      //       });
+      //     }
+      //   });
 
       // Send Ride Accepted Email
       let emailHeader = (
