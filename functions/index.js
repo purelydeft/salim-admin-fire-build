@@ -1958,6 +1958,17 @@ exports.tripPassengerUpdateTrigger = functions.database
         }
       }
 
+      let driverEmergency = (await admin.database().ref("driver-emergency/" + driverId).orderByChild('alwaysShared').equalTo(true).once("value")).val()
+
+      for(const [key1, value] of Object.entries(driverEmergency)) {
+        if (value.mobile && value.alwaysShared) {
+          const msg1 =
+            "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/trip/" +
+            encodeURIComponent(btoa(after.tripId));
+          sendSMS("+91" + value.mobile, msg1);
+        }
+      }
+
       // Send Ride Accepted Email
       let emailHeader = (
         await admin.database().ref("email-templates/header").once("value")
