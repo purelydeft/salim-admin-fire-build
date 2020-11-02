@@ -876,7 +876,7 @@ exports.updatePassenger = functions.database
           }
           admin
             .database()
-            .ref("drivers/" + key).update(updatedData)
+            .ref("passengers/" + key).update(updatedData)
         })
         .catch((err) => {
           functions.logger.info(err);
