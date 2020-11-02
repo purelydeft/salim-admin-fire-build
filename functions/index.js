@@ -20,6 +20,8 @@ const mailingDetails = {
 };
 const liveAccountSid = "ACfd767804b4b2df47eccf2aae03b2aaad";
 const liveAuthToken = "2d9a5f84e3a3f16e3d46d22bb62a4e60";
+const testAccountSid = "ACbbba6ad2e8951f35b48aada1dfc72a2f";
+const testAuthToken = "89b2162ddf5f2853ec3ec46eb2e04b1a";
 
 const twilioNumber = "+17632252752";
 const twilioService = "MG12608acdbaf92ba85c6972bc2fa6a3d7";
@@ -337,6 +339,10 @@ exports.deleteDriver = functions.database
     await admin
       .database()
       .ref("driver-cards/" + id)
+      .remove();
+    await admin
+      .database()
+      .ref("driver-emergency/" + id)
       .remove();
     admin
       .auth()
