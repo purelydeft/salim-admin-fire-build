@@ -4,9 +4,11 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
+const Mail = require("nodemailer/lib/mailer");
 const cors = require("cors")({
   origin: true,
 });
+const { jsPDF } = require("jspdf");
 
 const mailingDetails = {
   host: "smtp.gmail.com",
@@ -18,12 +20,12 @@ const mailingDetails = {
     pass: "Informatics@123",
   },
 };
-const liveAccountSid = "ACfd767804b4b2df47eccf2aae03b2aaad";
-const liveAuthToken = "2d9a5f84e3a3f16e3d46d22bb62a4e60";
+const liveAccountSid = "AC6c5019c7101d3b7aaf83b9dddf28a279";
+const liveAuthToken = "0a335f758759276626a639be5d07226f";
 const testAccountSid = "ACbbba6ad2e8951f35b48aada1dfc72a2f";
 const testAuthToken = "89b2162ddf5f2853ec3ec46eb2e04b1a";
 
-const twilioNumber = "+17632252752";
+const twilioNumber = "+13362238736";
 const twilioService = "MG12608acdbaf92ba85c6972bc2fa6a3d7";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
@@ -35,9 +37,24 @@ const TRIP_STATUS_GOING = "going";
 const TRIP_STATUS_FINISHED = "finished";
 const TRIP_STATUS_CANCELED = "canceled";
 
+/**
+ * Uncomment for local testing
+ */
+// var serviceAccount = require("E:/Projects/Salim/salim-admin-fire-build/functions/wrapspeedtaxi-286206-b824f46fc5fb.json");
+
+// admin.initializeApp({
+//   credential: admin.credential.cert(serviceAccount),
+//   databaseURL: "https://wrapspeedtaxi-286206.firebaseio.com",
+// });
+
+/**
+ * Uncomment while uploading to production
+ */
 admin.initializeApp();
 
-function btoa(str) { return Buffer.from(str).toString('base64'); }
+function btoa(str) {
+  return Buffer.from(str).toString("base64");
+}
 
 function sendMessage(token, title, message) {
   if (token === undefined || token === "" || token === null) {
@@ -69,17 +86,17 @@ function sendMessage(token, title, message) {
 function sendSMS(to, mesage) {
   try {
     client.messages
-    .create({
-      body: mesage,
-      from: twilioNumber,
-      to: to,
-    })
-    .then((message) => {
-      // functions.logger.info(message);
-    })
-    .catch((err) => functions.logger.error(err));
-  } catch(err) {
-    functions.logger.error(err)
+      .create({
+        body: mesage,
+        from: twilioNumber,
+        to: to,
+      })
+      .then((message) => {
+        // functions.logger.info(message);
+      })
+      .catch((err) => functions.logger.error(err));
+  } catch (err) {
+    functions.logger.error(err);
   }
 }
 
@@ -534,7 +551,7 @@ exports.createDriver = functions.database
         original.providerId == "facebook.com")
     ) {
       const user = await admin.auth().getUser(key);
-      if (original.isEmailVerified && !user.emailVerified) {  
+      if (original.isEmailVerified && !user.emailVerified) {
         admin
           .auth()
           .updateUser(key, {
@@ -663,7 +680,18 @@ exports.updateDriver = functions.database
       updateData.password = after.password;
       updateCheck = true;
     }
-   
+
+    if (after.rideRejectionCount >= 3) {
+      sendSMS(
+        "+91" + "8950299770",
+        `Driver named ${after.name} has rejected his 3rd consecutive ride!`
+      );
+    }
+
+    if (after.triggerStatementGeneration) {
+      generateEarningStatements(key, after);
+    }
+
     if (updateCheck) {
       admin
         .auth()
@@ -674,18 +702,210 @@ exports.updateDriver = functions.database
           if (after.password) {
             updatedData.password = null;
           }
-          if(!updateData.emailVerified) {
+          if (!updateData.emailVerified) {
             updatedData.isEmailVerified = false;
           }
           admin
             .database()
-            .ref("drivers/" + key).update(updatedData)
+            .ref("drivers/" + key)
+            .update(updatedData);
         })
         .catch((err) => {
           functions.logger.info(err);
         });
     }
   });
+
+async function generateEarningStatements(driverId, driver) {
+  let companyData = (
+    await admin.database().ref("company-details").once("value")
+  ).val();
+  admin
+    .database()
+    .ref("trip-passengers")
+    .orderByChild("driverId")
+    .equalTo(driverId)
+    .once("value", async function (snap) {
+      if (snap != null) {
+        finishedTrips = [];
+        snap.forEach(function (trip) {
+          if (trip.val().status === "finished") {
+            finishedTrips.push(trip.val());
+          }
+        });
+        let emailStatement = (
+          await admin.database().ref("email-templates/statement").once("value")
+        ).val();
+        emailStatement.template = emailStatement.template.replace(
+          new RegExp("{name}", "g"),
+          driver.name
+        );
+        emailStatement.template = emailStatement.template.replace(
+          new RegExp("{body}", "g"),
+          await makeDataTable(finishedTrips)
+        );
+        emailStatement.template = emailStatement.template.replace(
+          new RegExp("{phoneNumber}", "g"),
+          driver.phoneNumber
+        );
+        emailStatement.template = emailStatement.template.replace(
+          new RegExp("{email}", "g"),
+          driver.email
+        );
+        emailStatement.template = emailStatement.template.replace(
+          new RegExp("{companyLogo}", "g"),
+          companyData.logo
+        );
+        emailStatement.template = emailStatement.template.replace(
+          new RegExp("{currentYear}", "g"),
+          `${new Date().getFullYear()}`
+        );
+
+        let header = ejs.render("");
+        let body = ejs.render(emailStatement.template);
+        let footer = ejs.render("");
+
+        let start = moment(driver.statementStartDate).format("Do MMM YYYY");
+        let end = moment(driver.statementEndDate).format("Do MMM YYYY");
+
+        let emailData = {
+          pageTitle: `Earnings from ${start} to ${end}`,
+          header,
+          body,
+          footer,
+        };
+        ejs.renderFile(
+          __dirname + "/email.ejs",
+          emailData,
+          function (err, html) {
+            if (err) {
+              functions.logger.error(err);
+              return res.status(200).json({
+                status: -1,
+                msg: "Unable To Send Statement Via Mail.",
+              });
+            } else {
+              attachments = [];
+              let callBack = function (err1, info) {
+                if (err1) {
+                  functions.logger.error(err1);
+                  return res.status(200).json({
+                    status: -1,
+                    msg: "Error occured while sending mail.",
+                  });
+                } else {
+                  functions.logger.info(info);
+                  return res.status(200).json({
+                    status: 1,
+                    msg: "Mail sent successfully.",
+                  });
+                }
+              };
+              let doc = new jsPDF();
+              doc.html(html, {
+                callback: (pdf) => {
+                  attachments = [
+                    {
+                      filename: "Statment.pdf",
+                      path: pdf.output("datauristring"),
+                      contentType: "application/pdf",
+                    },
+                  ];
+                },
+              });
+              sendEmail(
+                {
+                  to: driver.email,
+                  bcc: null,
+                  subject: `Earnings from ${start} to ${end}`,
+                  html,
+                  attachments,
+                },
+                callBack
+              );
+            }
+          }
+        );
+        admin
+          .database()
+          .ref("drivers/" + driverId)
+          .update({ triggerStatementGeneration: false });
+      }
+    });
+}
+
+async function makeDataTable(trips) {
+  var template;
+  trips.forEach((trip) => {
+    trip.fareDetails.finalFare = trip.fareDetails.finalFare.toFixed(2);
+    template += `<tr style="border-bottom: 1px solid #efefef;">
+  <td
+      style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
+      ${moment(trip.created).format("Do MMM YYYY hh:mm A")},
+      <!-- <span class="transaction-time">08: 47 PM</span>-->
+  </td>
+  <td
+      style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
+      Ride</td>
+  <td style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;"
+      align="center">
+      + <span class="amount-credit">$${trip.fareDetails.finalFare}</span></td>
+</tr>`;
+  });
+  // var statementDataTable = document.getElementById("statementDataTable");
+  // var table = document.createElement("table");
+
+  // // Create header
+  // var thead = document.createElement("thead");
+  // var th1 = document.createElement("th");
+  // var th2 = document.createElement("th");
+  // var th3 = document.createElement("th");
+  // th1.appendChild(document.createTextNode("Date"));
+  // th2.appendChild(document.createTextNode("Description"));
+  // th3.appendChild(document.createTextNode("Amount"));
+  // thead.appendChild(th1);
+  // thead.appendChild(th2);
+  // thead.appendChild(th3);
+  // table.appendChild(thead);
+
+  // // Create body
+  // var tbody = document.createElement("tbody");
+  // var tr = [];
+  // trips.forEach(trip, (index) => {
+  //   // Create rows
+  //   tr[index + 1] = document.createElement("tr");
+
+  //   // Create data columns
+  //   var td1 = document.createElement("td");
+  //   var td2 = document.createElement("td");
+  //   var td3 = document.createElement("td");
+
+  //   // append data
+  //   td1.appendChild(
+  //     document.createTextNode(
+  //       moment(trip.created).format("Do MMM YYYY hh:mm A")
+  //     )
+  //   );
+  //   td2.appendChild(document.createTextNode("Test description"));
+  //   td3.appendChild(document.createTextNode(trip.fareDetails.finalFare));
+
+  //   // append columns into rows
+  //   tr[index + 1].appendChild(td1);
+  //   tr[index + 1].appendChild(td2);
+  //   tr[index + 1].appendChild(td3);
+
+  //   // append rows into body
+  //   tbody.appendChild(tr[index + 1]);
+  // });
+
+  // // append body into table
+  // table.appendChild(tbody);
+
+  // // append table into div
+  // statementDataTable.appendChild(table);
+
+  return template;
+}
 
 exports.createPassenger = functions.database
   .ref("passengers/{id}")
@@ -860,7 +1080,7 @@ exports.updatePassenger = functions.database
       updateData.password = after.password;
       updateCheck = true;
     }
-   
+
     if (updateCheck) {
       admin
         .auth()
@@ -871,12 +1091,13 @@ exports.updatePassenger = functions.database
           if (after.password) {
             updatedData.password = null;
           }
-          if(!updateData.emailVerified) {
+          if (!updateData.emailVerified) {
             updatedData.isEmailVerified = false;
           }
           admin
             .database()
-            .ref("passengers/" + key).update(updatedData)
+            .ref("passengers/" + key)
+            .update(updatedData);
         })
         .catch((err) => {
           functions.logger.info(err);
@@ -906,9 +1127,14 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             .once("value")
         ).val();
 
-        let passengerEmergency = (await admin.database().ref("passenger-emergency/" + id).once("value")).val()
+        let passengerEmergency = (
+          await admin
+            .database()
+            .ref("passenger-emergency/" + id)
+            .once("value")
+        ).val();
 
-        for(const [key, value] of Object.entries(passengerEmergency)) {
+        for (const [key, value] of Object.entries(passengerEmergency)) {
           if (value.mobile) {
             const msg1 =
               "Hello " +
@@ -920,7 +1146,6 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             sendSMS("+91" + value.mobile, msg1);
           }
         }
-        
       } else {
         const driver = (
           await admin
@@ -929,9 +1154,14 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             .once("value")
         ).val();
 
-        let driverEmergency = (await admin.database().ref("driver-emergency/" + id).once("value")).val()
+        let driverEmergency = (
+          await admin
+            .database()
+            .ref("driver-emergency/" + id)
+            .once("value")
+        ).val();
 
-        for(const [key, value] of Object.entries(driverEmergency)) {
+        for (const [key, value] of Object.entries(driverEmergency)) {
           if (value.mobile) {
             const msg1 =
               "Hello " +
@@ -1215,9 +1445,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
         ).val();
         emailHeader.template = emailHeader.template.replace(
           new RegExp("{date}", "g"),
-          moment(new Date(tripData.pickedUpAt)).format(
-            "Do MMMM YYYY"
-          )
+          moment(new Date(tripData.pickedUpAt)).format("Do MMMM YYYY")
         );
         emailHeader.template = emailHeader.template.replace(
           new RegExp("{companyLogo}", "g"),
@@ -1231,9 +1459,12 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         // Split Payment Rows
         let splitRows = "";
-        splitPayments.forEach(async splitPayment => {
+        splitPayments.forEach(async (splitPayment) => {
           let splitBody = (
-            await admin.database().ref("email-templates/invoice-split-payment-row").once("value")
+            await admin
+              .database()
+              .ref("email-templates/invoice-split-payment-row")
+              .once("value")
           ).val();
           splitBody.template = splitBody.template.replace(
             new RegExp("{name}", "g"),
@@ -1254,11 +1485,11 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           splitRows += splitBody.template;
         });
         // Ends Split Payment Rows
-  
+
         let emailBody = (
           await admin.database().ref("email-templates/invoice").once("value")
         ).val();
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{currency}", "g"),
           businessData.currency
@@ -1273,12 +1504,12 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           new RegExp("{tripId}", "g"),
           req.body.tripPassengerId
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{riderName}", "g"),
           passengerData.name
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{riderNumber}", "g"),
           passengerData.phoneNumber
@@ -1293,32 +1524,32 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           new RegExp("{driverProfilePic}", "g"),
           driverData.profilePic ? driverData.profilePic : companyData.logo
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{driverName}", "g"),
           driverData.name
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{fleetType}", "g"),
           vehicleType.name
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{fleetDetail}", "g"),
           driverData.brand + " - " + driverData.model
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{fromTime}", "g"),
           moment(new Date(tripData.pickedUpAt)).format("hh:mm A")
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{fromAddress}", "g"),
           tripData.origin.address
-        ); 
-        
+        );
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{endTime}", "g"),
           moment(new Date(tripData.droppedOffAt)).format("hh:mm A")
@@ -1328,12 +1559,12 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           new RegExp("{toAddress}", "g"),
           tripData.destination.address
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{baseFare}", "g"),
           tripData.fareDetails.baseFare.toFixed(2)
         );
-        
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{taxFare}", "g"),
           tripData.fareDetails.tax.toFixed(2)
@@ -1342,19 +1573,19 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
         emailBody.template = emailBody.template.replace(
           new RegExp("{paidBy}", "g"),
           tripData.paymentMethod
-        );  
+        );
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{splittedAmount}", "g"),
           amount.toFixed(2)
         );
 
-        if(tripData.paymentMethod == 'cash') {
+        if (tripData.paymentMethod == "cash") {
           emailBody.template = emailBody.template.replace(
             new RegExp("{paidByImage}", "g"),
             "https://wrapspeedtaxi.com/public/email_images/cash.png"
           );
-        } else if(tripData.paymentMethod == 'wallet') {
+        } else if (tripData.paymentMethod == "wallet") {
           emailBody.template = emailBody.template.replace(
             new RegExp("{paidByImage}", "g"),
             "https://wrapspeedtaxi.com/public/email_images/wallet.png"
@@ -1369,13 +1600,13 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
         emailBody.template = emailBody.template.replace(
           new RegExp("{splitRows}", "g"),
           splitRows
-        ); 
+        );
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{companyWeb}", "g"),
           "https://wrapspeedtaxi.com/"
         );
-  
+
         let emailFooter = (
           await admin.database().ref("email-templates/footer").once("value")
         ).val();
@@ -1390,43 +1621,47 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           body,
           footer,
         };
-        ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-          if (err) {
-            functions.logger.error(err);
-            return res.status(200).json({
-              status: -1,
-              msg: "Unable To Send Invoice Via Mail.",
-            });
-          } else {
-            let callBack = function (err1, info) {
-              if (err1) {
-                functions.logger.error(err1);
-                return res.status(200).json({
-                  status: -1,
-                  msg: "Error occured while sending mail.",
-                });
-              } else {
-                functions.logger.info(info);
-                return res.status(200).json({
-                  status: 1,
-                  msg: "Mail sent successfully.",
-                });
-              }
-            };
-            sendEmail(
-              {
-                to: 
-                  req.body.type == "passenger"
-                    ? passengerData.email
-                    : driverData.email,
-                bcc: null,
-                subject: "Invoice For Trip : #" + req.body.tripPassengerId,
-                html,
-              },
-              callBack
-            );
+        ejs.renderFile(
+          __dirname + "/email.ejs",
+          emailData,
+          function (err, html) {
+            if (err) {
+              functions.logger.error(err);
+              return res.status(200).json({
+                status: -1,
+                msg: "Unable To Send Invoice Via Mail.",
+              });
+            } else {
+              let callBack = function (err1, info) {
+                if (err1) {
+                  functions.logger.error(err1);
+                  return res.status(200).json({
+                    status: -1,
+                    msg: "Error occured while sending mail.",
+                  });
+                } else {
+                  functions.logger.info(info);
+                  return res.status(200).json({
+                    status: 1,
+                    msg: "Mail sent successfully.",
+                  });
+                }
+              };
+              sendEmail(
+                {
+                  to:
+                    req.body.type == "passenger"
+                      ? passengerData.email
+                      : driverData.email,
+                  bcc: null,
+                  subject: "Invoice For Trip : #" + req.body.tripPassengerId,
+                  html,
+                },
+                callBack
+              );
+            }
           }
-        });
+        );
       } else {
         return res.status(200).json({
           status: -1,
@@ -1488,7 +1723,7 @@ exports.complaintCreateTrigger = functions.database
     for (const [key, value] of Object.entries(admins)) {
       adminData = value;
     }
-    functions.logger.info(adminData)
+    functions.logger.info(adminData);
     const companyData = (
       await admin.database().ref("company-details").once("value")
     ).val();
@@ -1520,7 +1755,7 @@ exports.complaintCreateTrigger = functions.database
     let content = "Complaint Registered By ";
     content += original.driverId ? "Driver : " : "Passenger : ";
     content += user.name.toUpperCase() + "<br/>";
-    content += "<b>Subject Of Complaint</b> : " + original.subject; 
+    content += "<b>Subject Of Complaint</b> : " + original.subject;
     emailBody.template = emailBody.template.replace(
       new RegExp("{content}", "g"),
       content
@@ -1616,38 +1851,39 @@ exports.complaintUpdateTrigger = functions.database
       );
 
       let emailBody;
-      if(before.status != after.status) {
+      if (before.status != after.status) {
         let content = "Complaint Registered By ";
         let title = "";
-        if(after.status == 0) {
+        if (after.status == 0) {
           emailBody = (
             await admin
               .database()
               .ref("email-templates/complaint-processing")
               .once("value")
-          ).val()
+          ).val();
           title = "Complaint Is Marked Pending";
-        } else if(after.status == 1) {
+        } else if (after.status == 1) {
           emailBody = (
             await admin
               .database()
               .ref("email-templates/complaint-processing")
               .once("value")
-          ).val()
-          title =  "Complaint Is Marked Under Processing";
+          ).val();
+          title = "Complaint Is Marked Under Processing";
         } else {
           emailBody = (
             await admin
               .database()
               .ref("email-templates/complaint-resolved")
               .once("value")
-          ).val()
-          title =   "Complaint Is Marked Resolved";
+          ).val();
+          title = "Complaint Is Marked Resolved";
         }
         content += original.driverId ? "Driver : " : "Passenger : ";
         content += user.name.toUpperCase() + "<br/>";
-        content += "<b>Subject Of Complaint</b> : " + original.subject + "<br/>"; 
-        content +=  title;
+        content +=
+          "<b>Subject Of Complaint</b> : " + original.subject + "<br/>";
+        content += title;
         emailBody.template = emailBody.template.replace(
           new RegExp("{title}", "g"),
           title
@@ -1675,28 +1911,32 @@ exports.complaintUpdateTrigger = functions.database
           footer,
         };
 
-        ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-          if (err) {
-            functions.logger.error(err);
-          } else {
-            let callBack = function (err1, info) {
-              if (err1) {
-                functions.logger.error(err1);
-              } else {
-                functions.logger.info(info);
-              }
-            };
-            sendEmail(
-              {
-                to: user.email,
-                bcc: adminData.email,
-                subject: title,
-                html,
-              },
-              callBack
-            );
+        ejs.renderFile(
+          __dirname + "/email.ejs",
+          emailData,
+          function (err, html) {
+            if (err) {
+              functions.logger.error(err);
+            } else {
+              let callBack = function (err1, info) {
+                if (err1) {
+                  functions.logger.error(err1);
+                } else {
+                  functions.logger.info(info);
+                }
+              };
+              sendEmail(
+                {
+                  to: user.email,
+                  bcc: adminData.email,
+                  subject: title,
+                  html,
+                },
+                callBack
+              );
+            }
           }
-        });
+        );
       }
     }
   });
@@ -1713,7 +1953,9 @@ exports.complaintResponseTrigger = functions.database
         .once("value")
     ).val();
     let type = complaintData.driverId ? "drivers" : "passengers";
-    let userId = complaintData.driverId ? complaintData.driverId : complaintData.passengerId;
+    let userId = complaintData.driverId
+      ? complaintData.driverId
+      : complaintData.passengerId;
     const user = (
       await admin
         .database()
@@ -1721,25 +1963,25 @@ exports.complaintResponseTrigger = functions.database
         .once("value")
     ).val();
     let sender;
-    if(original.adminId) {
+    if (original.adminId) {
       sender = (
         await admin
           .database()
-          .ref('admins' + "/" + original.adminId)
+          .ref("admins" + "/" + original.adminId)
           .once("value")
       ).val();
-    } else if(original.driverId) {
+    } else if (original.driverId) {
       sender = (
         await admin
           .database()
-          .ref('drivers' + "/" + original.driverId)
+          .ref("drivers" + "/" + original.driverId)
           .once("value")
       ).val();
     } else {
       sender = (
         await admin
           .database()
-          .ref('passengers' + "/" + original.passengerId)
+          .ref("passengers" + "/" + original.passengerId)
           .once("value")
       ).val();
     }
@@ -1777,24 +2019,24 @@ exports.complaintResponseTrigger = functions.database
       new RegExp("{companyName}", "g"),
       companyData.name.toUpperCase()
     );
-    
+
     const title = "New Response To Complaint : #" + id;
-    
+
     let emailBody = (
       await admin
         .database()
         .ref("email-templates/new-complaint-response")
         .once("value")
     ).val();
-    
+
     emailBody.template = emailBody.template.replace(
       new RegExp("{title}", "g"),
       title
     );
 
-    let content = "New Response To Complaint : #" + id +  "<br/>";
-    content += "<b>Sent From  : </b> : " + sender.name + "<br/>"; 
-    content += "<b>Description : </b> : " + original.description + "<br/>"; 
+    let content = "New Response To Complaint : #" + id + "<br/>";
+    content += "<b>Sent From  : </b> : " + sender.name + "<br/>";
+    content += "<b>Description : </b> : " + original.description + "<br/>";
 
     emailBody.template = emailBody.template.replace(
       new RegExp("{content}", "g"),
@@ -1953,9 +2195,16 @@ exports.tripPassengerUpdateTrigger = functions.database
         );
       }
 
-      let passengerEmergency = (await admin.database().ref("passenger-emergency/" + passengerId).orderByChild('alwaysShared').equalTo(true).once("value")).val()
+      let passengerEmergency = (
+        await admin
+          .database()
+          .ref("passenger-emergency/" + passengerId)
+          .orderByChild("alwaysShared")
+          .equalTo(true)
+          .once("value")
+      ).val();
 
-      for(const [key1, value] of Object.entries(passengerEmergency)) {
+      for (const [key1, value] of Object.entries(passengerEmergency)) {
         if (value.mobile && value.alwaysShared) {
           const msg1 =
             "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
@@ -1964,9 +2213,16 @@ exports.tripPassengerUpdateTrigger = functions.database
         }
       }
 
-      let driverEmergency = (await admin.database().ref("driver-emergency/" + driverId).orderByChild('alwaysShared').equalTo(true).once("value")).val()
+      let driverEmergency = (
+        await admin
+          .database()
+          .ref("driver-emergency/" + driverId)
+          .orderByChild("alwaysShared")
+          .equalTo(true)
+          .once("value")
+      ).val();
 
-      for(const [key1, value] of Object.entries(driverEmergency)) {
+      for (const [key1, value] of Object.entries(driverEmergency)) {
         if (value.mobile && value.alwaysShared) {
           const msg1 =
             "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/trip/" +
@@ -2099,7 +2355,7 @@ exports.tripPassengerUpdateTrigger = functions.database
         );
       }
 
-      if(after.tripType == 1) {
+      if (after.tripType == 1) {
         setTimeout(async () => {
           let initialStatus = after.status;
           const record = (
@@ -2109,15 +2365,16 @@ exports.tripPassengerUpdateTrigger = functions.database
               .once("value")
           ).val();
 
-          if(initialStatus == record.status) {
+          if (initialStatus == record.status) {
             await admin
               .database()
-              .ref("trip-passengers/" + key).update({
-                status : TRIP_STATUS_CANCELED,
-                modified : Date.now()
+              .ref("trip-passengers/" + key)
+              .update({
+                status: TRIP_STATUS_CANCELED,
+                modified: Date.now(),
               });
           }
-        }, 600000); 
+        }, 600000);
       }
     } else if (
       after.status == TRIP_STATUS_GOING &&
@@ -2243,17 +2500,13 @@ exports.tripPassengerUpdateTrigger = functions.database
 
       amount = amount / (splitPayments.length + 1);
 
-
-
       // Header Fixed
       let emailHeader = (
         await admin.database().ref("email-templates/header").once("value")
       ).val();
       emailHeader.template = emailHeader.template.replace(
         new RegExp("{date}", "g"),
-        moment(new Date(after.pickedUpAt)).format(
-          "Do MMMM YYYY"
-        )
+        moment(new Date(after.pickedUpAt)).format("Do MMMM YYYY")
       );
       emailHeader.template = emailHeader.template.replace(
         new RegExp("{companyLogo}", "g"),
@@ -2267,9 +2520,12 @@ exports.tripPassengerUpdateTrigger = functions.database
 
       // Split Payment Rows
       let splitRows = "";
-      splitPayments.forEach(async splitPayment => {
+      splitPayments.forEach(async (splitPayment) => {
         let splitBody = (
-          await admin.database().ref("email-templates/invoice-split-payment-row").once("value")
+          await admin
+            .database()
+            .ref("email-templates/invoice-split-payment-row")
+            .once("value")
         ).val();
         splitBody.template = splitBody.template.replace(
           new RegExp("{name}", "g"),
@@ -2294,7 +2550,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       let emailBody = (
         await admin.database().ref("email-templates/invoice").once("value")
       ).val();
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{currency}", "g"),
         businessData.currency
@@ -2309,12 +2565,12 @@ exports.tripPassengerUpdateTrigger = functions.database
         new RegExp("{tripId}", "g"),
         key
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{riderName}", "g"),
         passenger.name
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{riderNumber}", "g"),
         passenger.phoneNumber
@@ -2329,32 +2585,32 @@ exports.tripPassengerUpdateTrigger = functions.database
         new RegExp("{driverProfilePic}", "g"),
         driver.profilePic ? driver.profilePic : companyData.logo
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{driverName}", "g"),
         driver.name
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{fleetType}", "g"),
         vehicleType.name
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{fleetDetail}", "g"),
         driver.brand + " - " + driver.model
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{fromTime}", "g"),
         moment(new Date(after.pickedUpAt)).format("hh:mm A")
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{fromAddress}", "g"),
         after.origin.address
-      ); 
-      
+      );
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{endTime}", "g"),
         moment(new Date(after.droppedOffAt)).format("hh:mm A")
@@ -2364,12 +2620,12 @@ exports.tripPassengerUpdateTrigger = functions.database
         new RegExp("{toAddress}", "g"),
         after.destination.address
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{baseFare}", "g"),
         after.fareDetails.baseFare.toFixed(2)
       );
-      
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{taxFare}", "g"),
         after.fareDetails.tax.toFixed(2)
@@ -2378,19 +2634,19 @@ exports.tripPassengerUpdateTrigger = functions.database
       emailBody.template = emailBody.template.replace(
         new RegExp("{paidBy}", "g"),
         after.paymentMethod
-      );  
+      );
 
       emailBody.template = emailBody.template.replace(
         new RegExp("{splittedAmount}", "g"),
         amount.toFixed(2)
       );
 
-      if(after.paymentMethod == 'cash') {
+      if (after.paymentMethod == "cash") {
         emailBody.template = emailBody.template.replace(
           new RegExp("{paidByImage}", "g"),
           "https://wrapspeedtaxi.com/public/email_images/cash.png"
         );
-      } else if(after.paymentMethod == 'wallet') {
+      } else if (after.paymentMethod == "wallet") {
         emailBody.template = emailBody.template.replace(
           new RegExp("{paidByImage}", "g"),
           "https://wrapspeedtaxi.com/public/email_images/wallet.png"
@@ -2405,7 +2661,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       emailBody.template = emailBody.template.replace(
         new RegExp("{splitRows}", "g"),
         splitRows
-      ); 
+      );
 
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
@@ -2427,33 +2683,34 @@ exports.tripPassengerUpdateTrigger = functions.database
         footer,
       };
 
-      ejs.renderFile(__dirname + "/email.ejs", emailData, async function (
-        err,
-        html
-      ) {
-        if (err) {
-          functions.logger.error(err);
-        } else {
-          let callBack = function (err1, info) {
-            if (err1) {
-              functions.logger.error(err1);
-              mailer.close();
-            } else {
-              functions.logger.info(info);
-              mailer.close();
-            }
-          };
-          sendEmail(
-            {
-              to: passenger.email,
-              bcc: driver.email,
-              subject: "Invoice For Trip : #" + key,
-              html,
-            },
-            callBack
-          );
+      ejs.renderFile(
+        __dirname + "/email.ejs",
+        emailData,
+        async function (err, html) {
+          if (err) {
+            functions.logger.error(err);
+          } else {
+            let callBack = function (err1, info) {
+              if (err1) {
+                functions.logger.error(err1);
+                mailer.close();
+              } else {
+                functions.logger.info(info);
+                mailer.close();
+              }
+            };
+            sendEmail(
+              {
+                to: passenger.email,
+                bcc: driver.email,
+                subject: "Invoice For Trip : #" + key,
+                html,
+              },
+              callBack
+            );
+          }
         }
-      });
+      );
 
       if (after.paymentMethod != "cash") {
         let walletDetails = (
@@ -2681,7 +2938,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               if (trip.status == TRIP_STATUS_ACCEPTED) {
                 trips.push({
                   key: trip.key,
-                  seats : trip.seats,
+                  seats: trip.seats,
                   distance:
                     calcCrow(
                       driverLocation.lat,
@@ -2693,7 +2950,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               } else if (trip.status == TRIP_STATUS_WAITING) {
                 trips.push({
                   key: trip.key,
-                  seats : trip.seats,
+                  seats: trip.seats,
                   distance: calcCrow(
                     driverLocation.lat,
                     driverLocation.lng,
@@ -2704,7 +2961,7 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
               } else if (trip.status == TRIP_STATUS_GOING) {
                 trips.push({
                   key: trip.key,
-                  seats : trip.seats,
+                  seats: trip.seats,
                   distance: calcCrow(
                     driverLocation.lat,
                     driverLocation.lng,
@@ -2717,14 +2974,14 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
             if (trips.length > 0) {
               trips = trips.sort((a, b) => a.distance - b.distance);
               let seatsOccupied = 0;
-              trips.forEach(function(trip){
+              trips.forEach(function (trip) {
                 seatsOccupied += trip.seats;
               });
               let seats = tripData.totalSeats - seatsOccupied;
               admin
                 .database()
                 .ref("trips/" + after.tripId)
-                .update({ isCurrent: trips[0].key, availableSeats : seats });
+                .update({ isCurrent: trips[0].key, availableSeats: seats });
             } else {
               admin
                 .database()
@@ -2739,6 +2996,110 @@ exports.tripPassengerSharingUpdateTrigger = functions.database
           }
         });
     }
+  });
+
+exports.dirverUpdateTrigger = functions.database
+  .ref("driver/{id}")
+  .onCreate(async function (snapshot, context) {
+    const id = context.params.id;
+    const original = snapshot.val();
+    let type = original.driverId ? "drivers" : "passengers";
+    let userId = original.driverId ? original.driverId : original.passengerId;
+    const user = (
+      await admin
+        .database()
+        .ref(type + "/" + userId)
+        .once("value")
+    ).val();
+    const admins = await admin
+      .database()
+      .ref("admins")
+      .orderByChild("role_id")
+      .equalTo("0")
+      .limitToFirst(1)
+      .once("value");
+    let adminData = {};
+    for (const [key, value] of Object.entries(admins)) {
+      adminData = value;
+    }
+    functions.logger.info(adminData);
+    const companyData = (
+      await admin.database().ref("company-details").once("value")
+    ).val();
+
+    let emailHeader = (
+      await admin.database().ref("email-templates/header").once("value")
+    ).val();
+
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
+    let emailBody = (
+      await admin.database().ref("email-templates/new-complaint").once("value")
+    ).val();
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{title}", "g"),
+      "Complaint Registered"
+    );
+    let content = "Complaint Registered By ";
+    content += original.driverId ? "Driver : " : "Passenger : ";
+    content += user.name.toUpperCase() + "<br/>";
+    content += "<b>Subject Of Complaint</b> : " + original.subject;
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{content}", "g"),
+      content
+    );
+    emailBody.template = emailBody.template.replace(
+      new RegExp("{companyWeb}", "g"),
+      "https://wrapspeedtaxi.com/"
+    );
+    let emailFooter = (
+      await admin.database().ref("email-templates/footer").once("value")
+    ).val();
+
+    let header = ejs.render(emailHeader.template);
+    let body = ejs.render(emailBody.template);
+    let footer = ejs.render(emailFooter.template);
+
+    let emailData = {
+      pageTitle: "Complaint Registered",
+      header,
+      body,
+      footer,
+    };
+
+    ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+      if (err) {
+        functions.logger.error(err);
+      } else {
+        let callBack = function (err1, info) {
+          if (err1) {
+            functions.logger.error(err1);
+          } else {
+            functions.logger.info(info);
+          }
+        };
+        sendEmail(
+          {
+            to: user.email,
+            bcc: adminData.email,
+            subject: "Complaint Registered",
+            html,
+          },
+          callBack
+        );
+      }
+    });
   });
 
 /************************************End Live DB Functions*************************************************/

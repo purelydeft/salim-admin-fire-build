@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "wrapspeedtaxi-286206",
+  "private_key_id": "b824f46fc5fbf0bca8bf55182fde7a736e9ac1bc",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDCv9hCgwP25fQ2\ni3t3fB4rHy7CUtUPjjePu95N5vEhZK4NBZ0NjTVsY+6d4ywbMqpCZqAwDPsX79Gq\n4Cv6lHwxPXqWEm7qC/Qn25O8LDl7TSU9uLmB2Xu+PYq4HO5w1XUWZNZu+cogw3sy\n5L7gi0NhR+dZU5jbxpm5B39IS+TphOt3ET5KC3yvfmjqDJqOSmSI5f5reTe4ViTK\nY7Wfy82WLV+d8ib6fesVN/gYddUAo44ZmO5qav8XGQSyXVgDSlpP//g9Kocqi/Ec\nqmhxWyfA8JIHdfRdIK6o/rsTL68sFY9EPhzXaiJLu6mNJLt/TPao9KCCZ07YSiaf\n7nLfe5OvAgMBAAECggEAFalUCxXah4hNURHTolcmXeKCh2/CLhBCAtVBJUYWNQIn\nT+B7dwnpUsyMungNrFrG0Ers71tKRH/SwOBdU+pXI/z0GSQkvRimSBamyIvcuue6\nSDK3Q4emuWLL/q2NIfTEKMD/juluv5Uuq1sBFiW3UWc3htqDCpL8/zUjxa1XYVfK\n4he0qnuWCGP3ChA7XeHGveOPVimDezLp6J6MC2OpInumd0nU9gVZ7i1IIY60SKuP\nAcnBgHo5BbAETYm4JzoQVVb2wRCfxdWGWhdtianI6QWOi4bzgkNQJ/4LVoJyowkk\n2gyZgZuHnLPOHeD3UBSnla/5TMGe6+dq5Ij6ZT1p8QKBgQD/GzPZHLvxoO76sOpi\nIsEYHKyXeDdU1A/MJ6wiC+qD1QmRZJaR9sPU4yrNDaDv5HHGX7xgldA8eK66Lpc4\nCCqf3FPeCOWofnZtELiWafPEwgZjDRRi3w1yzy/WgREb7+5YETdrpobPNRyqIkxH\nNdIA4UI2S9DlY8CPmN6jj3koXwKBgQDDboKIhIUZYKIrRI4tvWlIgE08iUYB+2wB\n8XSZSWcpMa+vtTHIHi2YRnu2QnvEvB1IMlz5W1Aq32tK1DIXcuzAP/d25lge6AWQ\ns/YwLgX/xhfn9ueLy7HDijix3+XjTpAwtoxsYrP59zpD5JmnnKAuL84fzjd2Id97\nChYmt1GWsQKBgQDy2T5+THBOEVnupEQ7r8IJ5iIW/4YM5uMzAgFHV/ikD0XQduUv\nhq3eF3NDSNoQBHSa18BIYdWd+3S6IGgsGvoYvHHKSMX3pIuwP964sZwxjlLuMCFc\nDeKLjNiJZsyWv80xYRJVFG35CyKCg6wBjiagV8/kSEBQXqmNCYXIRmicGQKBgDMd\nU0zLhFhn2uKAMsOp18CbthfQO5xHGy/C7GEvPqkakr3dIWEa64f5X2ADMYX6QZph\necnKZURhXRmcOGHDsEJ0OJBDnOawfswjFY/yaaVFNXl5LYR1yU/AdiWnzuPN546m\nIEI06qfFTtr1Dm81WvvZiwrsj7r5Dw+KStLjfZZxAoGBAOkOUvJWnBX7I3dqoLO6\nDavuKL+h8bLR/pMBEwbKN2URRs8A/gAwqB/z8mRNmUYsqyfHA+f0a3ls3uX1Ifiz\nXVJxFwU052vutk8zUwFcMLHvSZwj/3PZbOJjBBQwxPZG+w6WsNisdqbTstGGebFf\nw5X4EYmjAFOwKgkDYWSwERkR\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-4ip2c@wrapspeedtaxi-286206.iam.gserviceaccount.com",
+  "client_id": "112787521564522382661",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-4ip2c%40wrapspeedtaxi-286206.iam.gserviceaccount.com"
+}
