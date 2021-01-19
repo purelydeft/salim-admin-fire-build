@@ -103,6 +103,24 @@ function sendSMS(to, mesage) {
 function sendEmail(emailData, callBack) {
   try {
     const transporter = nodemailer.createTransport(mailingDetails);
+    // var parser = new DOMParser();
+    // var doc = parser.parseFromString(emailData.htmlString, "text/html");
+    // functions.logger.log("doc", JSON.stringify(doc));
+    // functions.logger.log("doc body", JSON.stringify(doc.body));
+
+    // let doc = new jsPDF();
+    // doc.text(, {
+    //   callback: (pdf) => {
+    //     functions.logger.log("Hello pdf:", JSON.stringify(pdf));
+    //     attachments = [
+    //       {
+    //         filename: "Statement.pdf",
+    //         path: pdf.output("datauristring"),
+    //         contentType: "application/pdf",
+    //       },
+    //     ];
+    //   },
+    // });
     let data = emailData;
     data.from = "patrickphp2@gmail.com";
     transporter.sendMail(data, callBack);
@@ -729,13 +747,21 @@ async function generateEarningStatements(driverId, driver) {
       if (snap != null) {
         finishedTrips = [];
         snap.forEach(function (trip) {
-          if (trip.val().status === "finished") {
+          if (
+            trip.val().status === "finished" &&
+            trip.val().created >= driver.statementStartDate &&
+            trip.val().created <= driver.statementEndDate
+          ) {
             finishedTrips.push(trip.val());
           }
         });
         let emailStatement = (
           await admin.database().ref("email-templates/statement").once("value")
         ).val();
+        functions.logger.log(
+          "emailStatement.template",
+          JSON.stringify(emailStatement.template)
+        );
         emailStatement.template = emailStatement.template.replace(
           new RegExp("{name}", "g"),
           driver.name
@@ -760,6 +786,8 @@ async function generateEarningStatements(driverId, driver) {
           new RegExp("{currentYear}", "g"),
           `${new Date().getFullYear()}`
         );
+
+        var htmlString = emailStatement.template;
 
         let header = ejs.render("");
         let body = ejs.render(emailStatement.template);
@@ -801,25 +829,13 @@ async function generateEarningStatements(driverId, driver) {
                   });
                 }
               };
-              let doc = new jsPDF();
-              doc.html(html, {
-                callback: (pdf) => {
-                  attachments = [
-                    {
-                      filename: "Statment.pdf",
-                      path: pdf.output("datauristring"),
-                      contentType: "application/pdf",
-                    },
-                  ];
-                },
-              });
               sendEmail(
                 {
                   to: driver.email,
                   bcc: null,
                   subject: `Earnings from ${start} to ${end}`,
                   html,
-                  attachments,
+                  htmlString,
                 },
                 callBack
               );
@@ -835,14 +851,13 @@ async function generateEarningStatements(driverId, driver) {
 }
 
 async function makeDataTable(trips) {
-  var template;
+  let template = "";
   trips.forEach((trip) => {
     trip.fareDetails.finalFare = trip.fareDetails.finalFare.toFixed(2);
     template += `<tr style="border-bottom: 1px solid #efefef;">
   <td
       style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
-      ${moment(trip.created).format("Do MMM YYYY hh:mm A")},
-      <!-- <span class="transaction-time">08: 47 PM</span>-->
+      ${moment(trip.created).format("Do MMM YYYY hh:mm A")}
   </td>
   <td
       style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
@@ -852,58 +867,6 @@ async function makeDataTable(trips) {
       + <span class="amount-credit">$${trip.fareDetails.finalFare}</span></td>
 </tr>`;
   });
-  // var statementDataTable = document.getElementById("statementDataTable");
-  // var table = document.createElement("table");
-
-  // // Create header
-  // var thead = document.createElement("thead");
-  // var th1 = document.createElement("th");
-  // var th2 = document.createElement("th");
-  // var th3 = document.createElement("th");
-  // th1.appendChild(document.createTextNode("Date"));
-  // th2.appendChild(document.createTextNode("Description"));
-  // th3.appendChild(document.createTextNode("Amount"));
-  // thead.appendChild(th1);
-  // thead.appendChild(th2);
-  // thead.appendChild(th3);
-  // table.appendChild(thead);
-
-  // // Create body
-  // var tbody = document.createElement("tbody");
-  // var tr = [];
-  // trips.forEach(trip, (index) => {
-  //   // Create rows
-  //   tr[index + 1] = document.createElement("tr");
-
-  //   // Create data columns
-  //   var td1 = document.createElement("td");
-  //   var td2 = document.createElement("td");
-  //   var td3 = document.createElement("td");
-
-  //   // append data
-  //   td1.appendChild(
-  //     document.createTextNode(
-  //       moment(trip.created).format("Do MMM YYYY hh:mm A")
-  //     )
-  //   );
-  //   td2.appendChild(document.createTextNode("Test description"));
-  //   td3.appendChild(document.createTextNode(trip.fareDetails.finalFare));
-
-  //   // append columns into rows
-  //   tr[index + 1].appendChild(td1);
-  //   tr[index + 1].appendChild(td2);
-  //   tr[index + 1].appendChild(td3);
-
-  //   // append rows into body
-  //   tbody.appendChild(tr[index + 1]);
-  // });
-
-  // // append body into table
-  // table.appendChild(tbody);
-
-  // // append table into div
-  // statementDataTable.appendChild(table);
-
   return template;
 }
 
