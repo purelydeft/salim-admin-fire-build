@@ -9,6 +9,7 @@ const cors = require("cors")({
   origin: true,
 });
 const { jsPDF } = require("jspdf");
+const https = require("https");
 
 const mailingDetails = {
   host: "smtp.gmail.com",
@@ -700,8 +701,11 @@ exports.updateDriver = functions.database
     }
 
     if (after.rideRejectionCount >= 3) {
+      let companyData = (
+        await admin.database().ref("company-details").once("value")
+      ).val();
       sendSMS(
-        "+91" + "8950299770",
+        "+91" + companyData.mobile,
         `Driver named ${after.name} has rejected his 3rd consecutive ride!`
       );
     }
@@ -1641,7 +1645,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 });
 
 exports.scheduledFunction = functions.pubsub
-  .schedule("every 15 minutes")
+  .schedule("every 2 minutes")
   .onRun((context) => {
     const date = moment();
     admin
@@ -1654,12 +1658,66 @@ exports.scheduledFunction = functions.pubsub
           if (date.isAfter(scheduleDate)) {
             admin
               .database()
-              .ref("scheduled-trips/" + tripKey)
-              .remove()
-              .then(() => {});
+              .ref("trip-passengers/")
+              .push({
+                ...tripData,
+                status: "canceled",
+                cancellationReasonText: "No drivers were found for your ride",
+              })
+              .then(() => {
+                admin
+                  .database()
+                  .ref("scheduled-trips/" + tripKey)
+                  .remove();
+              });
           }
         }
       });
+  });
+
+exports.driverAssignmentCron = functions.pubsub
+  .schedule("every 2 minutes")
+  .onRun(() => {
+    functions.logger.log(
+      "cron called !!!",
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    const options = {
+      hostname: "cron.wrapspeedtaxi.com",
+      method: "GET",
+    };
+
+    const req = https.request(options, (res) => {
+      console.log(`statusCode: ${res.statusCode}`);
+      // res.on("data", (d) => {
+      //   functions.logger.log("d", d);
+      // });
+      // let data;
+      // res.on("data", (chunk) => {
+      //   data += chunk;
+      //   functions.logger.log("res data chunk", data);
+      // });
+
+      // res.on("error", (error) => {
+      //   functions.logger.log("res error", error);
+      // });
+      // res.on("end", () => {
+      //   // JSON.parse(data).todo;
+      //   functions.logger.log("res on request end", JSON.parse(data).todo);
+      // });
+    });
+    // req.on("data", (chunk) => {
+    //   data += chunk;
+    //   functions.logger.log("req data chunk", data);
+    // });
+
+    // req.on("error", (error) => {
+    //   functions.logger.log("req error", error);
+    // });
+    // req.on("end", () => {
+    //   // JSON.parse(data).todo;
+    //   functions.logger.log("req on request end", JSON.parse(data).todo);
+    // });
   });
 
 exports.complaintCreateTrigger = functions.database
@@ -3063,6 +3121,44 @@ exports.dirverUpdateTrigger = functions.database
         );
       }
     });
+  });
+
+exports.highDemandAreaNotificationTrigger = functions.database
+  .ref("high-demand-areas/{id}")
+  .onUpdate(function (snapshot, context) {
+    const areaId = context.params.id;
+    const area = snapshot.after.val();
+    if (area.sendNotification) {
+      driver = [];
+      admin
+        .database()
+        .ref("drivers")
+        .once("value", async function (snapshot) {
+          drivers = snapshot.val();
+          for (const [driverKey, driversData] of Object.entries(drivers)) {
+            const driverNotification = (
+              await admin
+                .database()
+                .ref("driver-push-notifications/" + driverKey)
+                .once("value")
+            ).val();
+            const msgDriver = `${area.address} is notified as a high demand area!`;
+            if (driversData.alwaysOn) {
+              if (driverNotification.isPushEnabled) {
+                sendMessage(
+                  driverNotification.pushToken,
+                  "High Demand Alert!",
+                  "Driver Notification: " + msgDriver
+                );
+              }
+            }
+          }
+          admin
+            .database()
+            .ref("high-demand-areas/" + areaId)
+            .update({ sendNotification: false });
+        });
+    }
   });
 
 /************************************End Live DB Functions*************************************************/
