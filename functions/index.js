@@ -710,6 +710,65 @@ exports.updateDriver = functions.database
       );
     }
 
+    if (after.backToBackRideCount > 0) {
+      admin
+        .database()
+        .ref("purchased-subscriptions")
+        .orderByChild("type")
+        .equalTo("DRIVER_SUBSCRIPTION")
+        .once("value", async function (snapshot) {
+          const tmp = snapshot.val();
+          let purchasedDriverSubscriptions = [];
+          for (const [
+            purchasedSubscriptionKey,
+            purchasedSubscriptionData,
+          ] of Object.entries(tmp)) {
+            if (purchasedSubscriptionData.driverId === key) {
+              purchasedDriverSubscriptions.push(purchasedSubscriptionData);
+            }
+          }
+          if (purchasedDriverSubscriptions.length > 0) {
+            const currentlyPurchasedSubscription = purchasedDriverSubscriptions.reverse()[0];
+            if (
+              after.backToBackRideCount >=
+              currentlyPurchasedSubscription.btbRideCount
+            ) {
+              const walletDetails = (
+                await admin
+                  .database()
+                  .ref("driver-wallets/" + key)
+                  .once("value")
+              ).val();
+              admin
+                .database()
+                .ref("driver-wallets/" + key)
+                .update({
+                  balance:
+                    walletDetails.balance +
+                    currentlyPurchasedSubscription.incentiveAmount,
+                });
+              admin
+                .database()
+                .ref("payment-transactions/wallet")
+                .push({
+                  admin_id: null,
+                  type: 1,
+                  driver_id: key,
+                  amount: currentlyPurchasedSubscription.incentiveAmount,
+                  description: `Incentive given on ${after.backToBackRideCount} consecutive rides (${currentlyPurchasedSubscription.name})`,
+                  created: Date.now(),
+                  tripId: null,
+                  transactionType: "INCENTIVE",
+                });
+              admin
+                .database()
+                .ref("drivers/" + key)
+                .update({ backToBackRideCount: 0 });
+            }
+          }
+        });
+    }
+
     if (after.triggerStatementGeneration) {
       generateEarningStatements(key, after);
     }
