@@ -933,6 +933,44 @@ async function makeDataTable(trips) {
   return template;
 }
 
+async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
+  const walletDetails = (
+    await admin
+      .database()
+      .ref("driver-wallets/" + key)
+      .once("value")
+  ).val();
+  functions.logger.log("walletDetails", walletDetails);
+  if (
+    walletDetails &&
+    walletDetails.balance >
+      (driver.minimumWalletAmount
+        ? driver.minimumWalletAmount
+        : businessData.minAmountInWallet)
+  ) {
+    await admin
+      .database()
+      .ref("money-withdrawal-request")
+      .push({
+        driverId: key,
+        driverName: driver.name,
+        withdrawalAmount:
+          walletDetails.balance -
+          (driver.minimumWalletAmount
+            ? driver.minimumWalletAmount
+            : businessData.minAmountInWallet),
+        bankDetails: {
+          bankName: driver.bankName ? driver.bankName : null,
+          accNo: driver.accNo ? driver.accNo : null,
+          holderName: driver.holderName ? driver.holderName : null,
+          swiftCode: driver.swiftCode ? driver.swiftCode : null,
+        },
+        status: "pending",
+        created: Date.now(),
+      });
+  }
+}
+
 exports.createPassenger = functions.database
   .ref("passengers/{id}")
   .onCreate(async function (snapshot, context) {
@@ -1777,6 +1815,88 @@ exports.driverAssignmentCron = functions.pubsub
     //   // JSON.parse(data).todo;
     //   functions.logger.log("req on request end", JSON.parse(data).todo);
     // });
+  });
+
+exports.walletWithdrawalDailyScheduler = functions.pubsub
+  .schedule("0 16 * * *")
+  .timeZone("Asia/Kolkata")
+  .onRun(() => {
+    admin
+      .database()
+      .ref("business-management/")
+      .once("value")
+      .then((snapshot) => {
+        const businessData = snapshot.val();
+        admin
+          .database()
+          .ref("drivers")
+          .once("value", async function (snapshot) {
+            drivers = snapshot.val();
+            for (const [driverKey, driversData] of Object.entries(drivers)) {
+              if (driversData.requestFrequency === "daily") {
+                makeMoneyTransferRequestToAdmin(
+                  driverKey,
+                  driversData,
+                  businessData
+                );
+              }
+            }
+          });
+      });
+  });
+exports.walletWithdrawalWeeklyScheduler = functions.pubsub
+  .schedule("0 16 * * 1")
+  .timeZone("Asia/Kolkata")
+  .onRun(() => {
+    admin
+      .database()
+      .ref("business-management/")
+      .once("value")
+      .then((snapshot) => {
+        const businessData = snapshot.val();
+        admin
+          .database()
+          .ref("drivers")
+          .once("value", async function (snapshot) {
+            drivers = snapshot.val();
+            for (const [driverKey, driversData] of Object.entries(drivers)) {
+              if (driversData.requestFrequency === "weekly") {
+                makeMoneyTransferRequestToAdmin(
+                  driverKey,
+                  driversData,
+                  businessData
+                );
+              }
+            }
+          });
+      });
+  });
+exports.walletWithdrawalMonthlyScheduler = functions.pubsub
+  .schedule("0 16 1 * *")
+  .timeZone("Asia/Kolkata")
+  .onRun(() => {
+    admin
+      .database()
+      .ref("business-management/")
+      .once("value")
+      .then((snapshot) => {
+        const businessData = snapshot.val();
+        admin
+          .database()
+          .ref("drivers")
+          .once("value", async function (snapshot) {
+            drivers = snapshot.val();
+            for (const [driverKey, driversData] of Object.entries(drivers)) {
+              if (driversData.requestFrequency === "monthly") {
+                makeMoneyTransferRequestToAdmin(
+                  driverKey,
+                  driversData,
+                  businessData
+                );
+              }
+            }
+          });
+      });
   });
 
 exports.complaintCreateTrigger = functions.database
@@ -3188,7 +3308,6 @@ exports.highDemandAreaNotificationTrigger = functions.database
     const areaId = context.params.id;
     const area = snapshot.after.val();
     if (area.sendNotification) {
-      driver = [];
       admin
         .database()
         .ref("drivers")
