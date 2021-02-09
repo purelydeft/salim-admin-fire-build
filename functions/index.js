@@ -773,6 +773,17 @@ exports.updateDriver = functions.database
       generateEarningStatements(key, after);
     }
 
+    // if (after.triggerWithdrawal) {
+    //   admin
+    //     .database()
+    //     .ref("business-management/")
+    //     .once("value")
+    //     .then((snapshot) => {
+    //       const businessData = snapshot.val();
+    //       makeMoneyTransferRequestToAdmin(key, after, businessData);
+    //     });
+    // }
+
     if (updateCheck) {
       admin
         .auth()
@@ -940,13 +951,12 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
       .ref("driver-wallets/" + key)
       .once("value")
   ).val();
-  functions.logger.log("walletDetails", walletDetails);
+  const minimumAmount = driver.minimumWalletAmount
+    ? parseFloat(driver.minimumWalletAmount).toFixed(2)
+    : parseFloat(businessData.minAmountInWallet).toFixed(2);
   if (
     walletDetails &&
-    walletDetails.balance >
-      (driver.minimumWalletAmount
-        ? driver.minimumWalletAmount
-        : businessData.minAmountInWallet)
+    parseFloat(walletDetails.balance) > parseFloat(minimumAmount)
   ) {
     await admin
       .database()
@@ -954,11 +964,10 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
       .push({
         driverId: key,
         driverName: driver.name,
-        withdrawalAmount:
-          walletDetails.balance -
-          (driver.minimumWalletAmount
-            ? driver.minimumWalletAmount
-            : businessData.minAmountInWallet),
+        minimumAmountToMaintain: parseFloat(minimumAmount).toFixed(2),
+        withdrawalAmount: (
+          parseFloat(walletDetails.balance) - parseFloat(minimumAmount)
+        ).toFixed(2),
         bankDetails: {
           bankName: driver.bankName ? driver.bankName : null,
           accNo: driver.accNo ? driver.accNo : null,
@@ -967,6 +976,30 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
         },
         status: "pending",
         created: Date.now(),
+      });
+    admin
+      .database()
+      .ref("driver-wallets/" + key)
+      .update({
+        balance: (
+          parseFloat(walletDetails.balance) -
+          (parseFloat(walletDetails.balance) - parseFloat(minimumAmount))
+        ).toFixed(2),
+      });
+    admin
+      .database()
+      .ref("payment-transactions/wallet")
+      .push({
+        admin_id: null,
+        type: 0,
+        driver_id: key,
+        amount: (
+          parseFloat(walletDetails.balance) - parseFloat(minimumAmount)
+        ).toFixed(2),
+        description: "Wallet money withdrawal",
+        created: Date.now(),
+        tripId: null,
+        transactionType: "WITHDRAWAL",
       });
   }
 }
