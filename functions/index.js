@@ -4,7 +4,6 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
-const Mail = require("nodemailer/lib/mailer");
 const cors = require("cors")({
   origin: true,
 });
@@ -18,7 +17,7 @@ const mailingDetails = {
   requireTLS: true,
   auth: {
     user: "patrickphp2@gmail.com",
-    pass: "Informatics@123",
+    pass: "Informatics@1234",
   },
 };
 const liveAccountSid = "AC6c5019c7101d3b7aaf83b9dddf28a279";
@@ -126,7 +125,7 @@ function sendEmail(emailData, callBack) {
     data.from = "patrickphp2@gmail.com";
     transporter.sendMail(data, callBack);
   } catch (err) {
-    functions.logger.error(err);
+    functions.logger.error("sendMail err: ", err);
   }
 }
 
@@ -762,6 +761,16 @@ exports.updateDriver = functions.database
                 });
               admin
                 .database()
+                .ref("earnings/incentives")
+                .push({
+                  driverId: key,
+                  amount: currentlyPurchasedSubscription.incentiveAmount,
+                  description: `Incentive given on ${after.backToBackRideCount} consecutive rides (${currentlyPurchasedSubscription.name})`,
+                  created: Date.now(),
+                  earningType: "INCENTIVE",
+                });
+              admin
+                .database()
                 .ref("drivers/" + key)
                 .update({ backToBackRideCount: 0 });
             }
@@ -772,17 +781,6 @@ exports.updateDriver = functions.database
     if (after.triggerStatementGeneration) {
       generateEarningStatements(key, after);
     }
-
-    // if (after.triggerWithdrawal) {
-    //   admin
-    //     .database()
-    //     .ref("business-management/")
-    //     .once("value")
-    //     .then((snapshot) => {
-    //       const businessData = snapshot.val();
-    //       makeMoneyTransferRequestToAdmin(key, after, businessData);
-    //     });
-    // }
 
     if (updateCheck) {
       admin
@@ -812,135 +810,253 @@ async function generateEarningStatements(driverId, driver) {
   let companyData = (
     await admin.database().ref("company-details").once("value")
   ).val();
-  admin
+  let statementRecords = [];
+  await admin
     .database()
-    .ref("trip-passengers")
+    .ref("earnings/bonus")
     .orderByChild("driverId")
     .equalTo(driverId)
-    .once("value", async function (snap) {
-      if (snap != null) {
-        finishedTrips = [];
-        snap.forEach(function (trip) {
-          if (
-            trip.val().status === "finished" &&
-            trip.val().created >= driver.statementStartDate &&
-            trip.val().created <= driver.statementEndDate
-          ) {
-            finishedTrips.push(trip.val());
-          }
-        });
-        let emailStatement = (
-          await admin.database().ref("email-templates/statement").once("value")
-        ).val();
-        functions.logger.log(
-          "emailStatement.template",
-          JSON.stringify(emailStatement.template)
-        );
-        emailStatement.template = emailStatement.template.replace(
-          new RegExp("{name}", "g"),
-          driver.name
-        );
-        emailStatement.template = emailStatement.template.replace(
-          new RegExp("{body}", "g"),
-          await makeDataTable(finishedTrips)
-        );
-        emailStatement.template = emailStatement.template.replace(
-          new RegExp("{phoneNumber}", "g"),
-          driver.phoneNumber
-        );
-        emailStatement.template = emailStatement.template.replace(
-          new RegExp("{email}", "g"),
-          driver.email
-        );
-        emailStatement.template = emailStatement.template.replace(
-          new RegExp("{companyLogo}", "g"),
-          companyData.logo
-        );
-        emailStatement.template = emailStatement.template.replace(
-          new RegExp("{currentYear}", "g"),
-          `${new Date().getFullYear()}`
-        );
-
-        var htmlString = emailStatement.template;
-
-        let header = ejs.render("");
-        let body = ejs.render(emailStatement.template);
-        let footer = ejs.render("");
-
-        let start = moment(driver.statementStartDate).format("Do MMM YYYY");
-        let end = moment(driver.statementEndDate).format("Do MMM YYYY");
-
-        let emailData = {
-          pageTitle: `Earnings from ${start} to ${end}`,
-          header,
-          body,
-          footer,
-        };
-        ejs.renderFile(
-          __dirname + "/email.ejs",
-          emailData,
-          function (err, html) {
-            if (err) {
-              functions.logger.error(err);
-              return res.status(200).json({
-                status: -1,
-                msg: "Unable To Send Statement Via Mail.",
-              });
-            } else {
-              attachments = [];
-              let callBack = function (err1, info) {
-                if (err1) {
-                  functions.logger.error(err1);
-                  return res.status(200).json({
-                    status: -1,
-                    msg: "Error occured while sending mail.",
-                  });
-                } else {
-                  functions.logger.info(info);
-                  return res.status(200).json({
-                    status: 1,
-                    msg: "Mail sent successfully.",
-                  });
-                }
-              };
-              sendEmail(
-                {
-                  to: driver.email,
-                  bcc: null,
-                  subject: `Earnings from ${start} to ${end}`,
-                  html,
-                  htmlString,
-                },
-                callBack
-              );
-            }
-          }
-        );
-        admin
-          .database()
-          .ref("drivers/" + driverId)
-          .update({ triggerStatementGeneration: false });
+    .once("value", async function (snapshot) {
+      const bonusList = snapshot.val();
+      for (const [bonusKey, bonusData] of Object.entries(bonusList)) {
+        if (
+          moment(bonusData.created).isAfter(
+            moment(driver.statementStartDate)
+          ) &&
+          moment(bonusData.created).isBefore(moment(driver.statementEndDate))
+        ) {
+          statementRecords.push(bonusData);
+        } else if (
+          driver.statementStartDate === 0 &&
+          driver.statementEndDate === 0
+        ) {
+          statementRecords.push(bonusData);
+        }
       }
     });
+
+  await admin
+    .database()
+    .ref("earnings/incentives")
+    .orderByChild("driverId")
+    .equalTo(driverId)
+    .once("value", async function (snapshot) {
+      const incentivesList = snapshot.val();
+      for (const [incentiveKey, incentiveData] of Object.entries(
+        incentivesList
+      )) {
+        if (
+          moment(incentiveData.created).isAfter(
+            moment(driver.statementStartDate)
+          ) &&
+          moment(incentiveData.created).isBefore(
+            moment(driver.statementEndDate)
+          )
+        ) {
+          statementRecords.push(incentiveData);
+        } else if (
+          driver.statementStartDate === 0 &&
+          driver.statementEndDate === 0
+        ) {
+          statementRecords.push(incentiveData);
+        }
+      }
+    });
+
+  await admin
+    .database()
+    .ref("earnings/tips")
+    .orderByChild("driverId")
+    .equalTo(driverId)
+    .once("value", async function (snapshot) {
+      const tipsList = snapshot.val();
+      for (const [tipKey, tipData] of Object.entries(tipsList)) {
+        if (
+          moment(tipData.created).isAfter(moment(driver.statementStartDate)) &&
+          moment(tipData.created).isBefore(moment(driver.statementEndDate))
+        ) {
+          statementRecords.push(tipData);
+        } else if (
+          driver.statementStartDate === 0 &&
+          driver.statementEndDate === 0
+        ) {
+          statementRecords.push(tipData);
+        }
+      }
+    });
+
+  await admin
+    .database()
+    .ref("earnings/trips")
+    .orderByChild("driverId")
+    .equalTo(driverId)
+    .once("value", async function (snapshot) {
+      const tripsList = snapshot.val();
+      for (const [tripKey, tripData] of Object.entries(tripsList)) {
+        if (
+          moment(tripData.created).isAfter(moment(driver.statementStartDate)) &&
+          moment(tripData.created).isBefore(moment(driver.statementEndDate))
+        ) {
+          statementRecords.push(tripData);
+        } else if (
+          driver.statementStartDate === 0 &&
+          driver.statementEndDate === 0
+        ) {
+          statementRecords.push(tripData);
+        }
+      }
+    });
+
+  functions.logger.log("statementRecords", statementRecords);
+
+  let emailStatement = (
+    await admin.database().ref("email-templates/statement").once("value")
+  ).val();
+
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{name}", "g"),
+    driver.name
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{body}", "g"),
+    await makeDataTable(statementRecords)
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{phoneNumber}", "g"),
+    driver.phoneNumber
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{email}", "g"),
+    driver.email
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{companyLogo}", "g"),
+    companyData.logo
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{currentYear}", "g"),
+    `${new Date().getFullYear()}`
+  );
+
+  let header = ejs.render("");
+  let body = ejs.render(emailStatement.template);
+  let footer = ejs.render("");
+
+  let start = moment(driver.statementStartDate).format("Do MMM YYYY");
+  let end = moment(driver.statementEndDate).format("Do MMM YYYY");
+
+  // let emailTitle;
+  // if(driver.statementStartDate === 0 && driver.statementStartDate === 0){
+  //   emailTitle = `Earnings till today`;
+  // }else if() {
+  //   emailTitle = `Earnings from ${start} to ${end}`;
+  // }else {
+  //   emailTitle = `Earnings from ${start} to ${end}`;
+  // }
+
+  let emailData = {
+    pageTitle: `Earnings from ${start} to ${end}`,
+    header,
+    body,
+    footer,
+  };
+  ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+    if (err) {
+      functions.logger.error(err);
+      return res.status(200).json({
+        status: -1,
+        msg: "Unable To Send Statement Via Mail.",
+      });
+    } else {
+      attachments = [];
+      let callBack = function (err1, info) {
+        if (err1) {
+          functions.logger.error(err1);
+          return res.status(200).json({
+            status: -1,
+            msg: "Error occured while sending mail.",
+          });
+        } else {
+          functions.logger.info(info);
+          return res.status(200).json({
+            status: 1,
+            msg: "Mail sent successfully.",
+          });
+        }
+      };
+      let doc = new jsPDF();
+      doc.html(html, {
+        callback: (pdf) => {
+          attachments = [
+            {
+              filename: "Statement.pdf",
+              path: pdf.output("datauristring"),
+              contentType: "application/pdf",
+            },
+          ];
+        },
+      });
+      sendEmail(
+        {
+          to: driver.email,
+          bcc: null,
+          subject: `Earnings from ${start} to ${end}`,
+          html,
+          attachments,
+        },
+        callBack
+      );
+    }
+  });
+  admin
+    .database()
+    .ref("drivers/" + driverId)
+    .update({ triggerStatementGeneration: false });
 }
 
-async function makeDataTable(trips) {
-  let template = "";
-  trips.forEach((trip) => {
-    trip.fareDetails.finalFare = trip.fareDetails.finalFare.toFixed(2);
+async function makeDataTable(statementRecords) {
+  let template = `
+  <table id="dataTable" align="center" cellpadding="0" cellspacing="0"
+      width="100%" style="border: 1px solid #efefef;">
+      <thead>
+          <tr>
+              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+                  align="left">Date
+              </th>
+              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+                  align="left">Description
+              </th>
+              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+                  align="left">Type
+              </th>
+              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+                  align="center">Amount
+              </th>
+          </tr>
+      </thead>
+    <tbody>`;
+  statementRecords.forEach((record) => {
+    record.amount = record.amount.toFixed(2);
+    record.typeText =
+      record.earningType.toLowerCase().charAt(0).toUpperCase() +
+      record.earningType.slice(1);
     template += `<tr style="border-bottom: 1px solid #efefef;">
   <td
       style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
-      ${moment(trip.created).format("Do MMM YYYY hh:mm A")}
+      ${moment(record.created).format("Do MMM YYYY hh:mm A")}
   </td>
   <td
       style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
-      Ride</td>
+      ${record.description}</td>
+  <td
+      style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
+      ${record.typeText}</td>
   <td style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;"
       align="center">
-      + <span class="amount-credit">$${trip.fareDetails.finalFare}</span></td>
+      + <span class="amount-credit">$${record.amount}</span></td>
 </tr>`;
   });
+  template += `</tbody></table>`;
   return template;
 }
 
@@ -1819,35 +1935,7 @@ exports.driverAssignmentCron = functions.pubsub
 
     const req = https.request(options, (res) => {
       console.log(`statusCode: ${res.statusCode}`);
-      // res.on("data", (d) => {
-      //   functions.logger.log("d", d);
-      // });
-      // let data;
-      // res.on("data", (chunk) => {
-      //   data += chunk;
-      //   functions.logger.log("res data chunk", data);
-      // });
-
-      // res.on("error", (error) => {
-      //   functions.logger.log("res error", error);
-      // });
-      // res.on("end", () => {
-      //   // JSON.parse(data).todo;
-      //   functions.logger.log("res on request end", JSON.parse(data).todo);
-      // });
     });
-    // req.on("data", (chunk) => {
-    //   data += chunk;
-    //   functions.logger.log("req data chunk", data);
-    // });
-
-    // req.on("error", (error) => {
-    //   functions.logger.log("req error", error);
-    // });
-    // req.on("end", () => {
-    //   // JSON.parse(data).todo;
-    //   functions.logger.log("req on request end", JSON.parse(data).todo);
-    // });
   });
 
 exports.walletWithdrawalDailyScheduler = functions.pubsub
@@ -1904,6 +1992,7 @@ exports.walletWithdrawalWeeklyScheduler = functions.pubsub
           });
       });
   });
+
 exports.walletWithdrawalMonthlyScheduler = functions.pubsub
   .schedule("0 16 1 * *")
   .timeZone("Asia/Kolkata")
@@ -2972,6 +3061,19 @@ exports.tripPassengerUpdateTrigger = functions.database
             type: 1,
             created: Date.now(),
           });
+        admin
+          .database()
+          .ref("earnings/trips")
+          .push({
+            driverId: driverId,
+            driverName: driver.name,
+            description: "Cashless ride earning",
+            amount: parseFloat(after.fareDetails.commission.toFixed(2)),
+            created: Date.now(),
+            earningType: "TRIP",
+            tripId: key,
+            tripType: "CASHLESS",
+          });
       } else {
         let walletDetails = (
           await admin
@@ -3002,6 +3104,21 @@ exports.tripPassengerUpdateTrigger = functions.database
             driver_email: driver.email,
             type: 0,
             created: Date.now(),
+          });
+        admin
+          .database()
+          .ref("earnings/trips")
+          .push({
+            driverId: driverId,
+            driverName: driver.name,
+            description: "Cash ride earning",
+            amount: parseFloat(
+              (finalFare - after.fareDetails.commission).toFixed(2)
+            ),
+            created: Date.now(),
+            earningType: "TRIP",
+            tripId: key,
+            tripType: "CASH",
           });
       }
     } else if (after.status == TRIP_STATUS_CANCELED) {
@@ -3370,6 +3487,36 @@ exports.highDemandAreaNotificationTrigger = functions.database
             .update({ sendNotification: false });
         });
     }
+  });
+
+exports.onDriverLocationDelete = functions.database
+  .ref("driver-locations/{id}")
+  .onDelete(async function (change, context) {
+    const id = context.params.id;
+    const deletedLocation = change._data;
+    const driver = (
+      await admin
+        .database()
+        .ref("drivers/" + id)
+        .once("value")
+    ).val();
+    const duration = moment.duration(
+      moment(deletedLocation.last_active).diff(
+        moment(deletedLocation.first_active)
+      )
+    );
+    let onlineTime = 0;
+    if (driver.hasOwnProperty("onlineHours")) {
+      onlineTime = Number(driver.onlineHours) + Number(duration);
+    } else {
+      onlineTime = Number(duration);
+    }
+    admin
+      .database()
+      .ref("drivers/" + id)
+      .update({
+        onlineHours: onlineTime,
+      });
   });
 
 /************************************End Live DB Functions*************************************************/
