@@ -7,8 +7,8 @@ const ejs = require("ejs");
 const cors = require("cors")({
   origin: true,
 });
-const { jsPDF } = require("jspdf");
 const https = require("https");
+var pdf = require("html-pdf");
 
 const mailingDetails = {
   host: "smtp.gmail.com",
@@ -20,12 +20,18 @@ const mailingDetails = {
     pass: "Informatics@1234",
   },
 };
-const liveAccountSid = "AC6c5019c7101d3b7aaf83b9dddf28a279";
-const liveAuthToken = "0a335f758759276626a639be5d07226f";
+// warpspeedtaxi
+const liveAccountSid = "AC6005dce8d100a79770c8543411205a08";
+const liveAuthToken = "d75d71a5757f2bd94402133500557feb";
+const twilioNumber = "+19047204493";
+
+// const liveAccountSid = "AC6c5019c7101d3b7aaf83b9dddf28a279";
+// const liveAuthToken = "0a335f758759276626a639be5d07226f";
+// const twilioNumber = "+13362238736";
+
 const testAccountSid = "ACbbba6ad2e8951f35b48aada1dfc72a2f";
 const testAuthToken = "89b2162ddf5f2853ec3ec46eb2e04b1a";
 
-const twilioNumber = "+13362238736";
 const twilioService = "MG12608acdbaf92ba85c6972bc2fa6a3d7";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
@@ -103,24 +109,6 @@ function sendSMS(to, mesage) {
 function sendEmail(emailData, callBack) {
   try {
     const transporter = nodemailer.createTransport(mailingDetails);
-    // var parser = new DOMParser();
-    // var doc = parser.parseFromString(emailData.htmlString, "text/html");
-    // functions.logger.log("doc", JSON.stringify(doc));
-    // functions.logger.log("doc body", JSON.stringify(doc.body));
-
-    // let doc = new jsPDF();
-    // doc.text(, {
-    //   callback: (pdf) => {
-    //     functions.logger.log("Hello pdf:", JSON.stringify(pdf));
-    //     attachments = [
-    //       {
-    //         filename: "Statement.pdf",
-    //         path: pdf.output("datauristring"),
-    //         contentType: "application/pdf",
-    //       },
-    //     ];
-    //   },
-    // });
     let data = emailData;
     data.from = "patrickphp2@gmail.com";
     transporter.sendMail(data, callBack);
@@ -807,6 +795,10 @@ exports.updateDriver = functions.database
   });
 
 async function generateEarningStatements(driverId, driver) {
+  admin
+    .database()
+    .ref("drivers/" + driverId)
+    .update({ triggerStatementGeneration: false });
   let companyData = (
     await admin.database().ref("company-details").once("value")
   ).val();
@@ -818,19 +810,21 @@ async function generateEarningStatements(driverId, driver) {
     .equalTo(driverId)
     .once("value", async function (snapshot) {
       const bonusList = snapshot.val();
-      for (const [bonusKey, bonusData] of Object.entries(bonusList)) {
-        if (
-          moment(bonusData.created).isAfter(
-            moment(driver.statementStartDate)
-          ) &&
-          moment(bonusData.created).isBefore(moment(driver.statementEndDate))
-        ) {
-          statementRecords.push(bonusData);
-        } else if (
-          driver.statementStartDate === 0 &&
-          driver.statementEndDate === 0
-        ) {
-          statementRecords.push(bonusData);
+      if (bonusList) {
+        for (const [bonusKey, bonusData] of Object.entries(bonusList)) {
+          if (
+            moment(bonusData.created).isAfter(
+              moment(driver.statementStartDate)
+            ) &&
+            moment(bonusData.created).isBefore(moment(driver.statementEndDate))
+          ) {
+            statementRecords.push(bonusData);
+          } else if (
+            driver.statementStartDate === 0 &&
+            driver.statementEndDate === 0
+          ) {
+            statementRecords.push(bonusData);
+          }
         }
       }
     });
@@ -842,23 +836,25 @@ async function generateEarningStatements(driverId, driver) {
     .equalTo(driverId)
     .once("value", async function (snapshot) {
       const incentivesList = snapshot.val();
-      for (const [incentiveKey, incentiveData] of Object.entries(
-        incentivesList
-      )) {
-        if (
-          moment(incentiveData.created).isAfter(
-            moment(driver.statementStartDate)
-          ) &&
-          moment(incentiveData.created).isBefore(
-            moment(driver.statementEndDate)
-          )
-        ) {
-          statementRecords.push(incentiveData);
-        } else if (
-          driver.statementStartDate === 0 &&
-          driver.statementEndDate === 0
-        ) {
-          statementRecords.push(incentiveData);
+      if (incentivesList) {
+        for (const [incentiveKey, incentiveData] of Object.entries(
+          incentivesList
+        )) {
+          if (
+            moment(incentiveData.created).isAfter(
+              moment(driver.statementStartDate)
+            ) &&
+            moment(incentiveData.created).isBefore(
+              moment(driver.statementEndDate)
+            )
+          ) {
+            statementRecords.push(incentiveData);
+          } else if (
+            driver.statementStartDate === 0 &&
+            driver.statementEndDate === 0
+          ) {
+            statementRecords.push(incentiveData);
+          }
         }
       }
     });
@@ -870,17 +866,21 @@ async function generateEarningStatements(driverId, driver) {
     .equalTo(driverId)
     .once("value", async function (snapshot) {
       const tipsList = snapshot.val();
-      for (const [tipKey, tipData] of Object.entries(tipsList)) {
-        if (
-          moment(tipData.created).isAfter(moment(driver.statementStartDate)) &&
-          moment(tipData.created).isBefore(moment(driver.statementEndDate))
-        ) {
-          statementRecords.push(tipData);
-        } else if (
-          driver.statementStartDate === 0 &&
-          driver.statementEndDate === 0
-        ) {
-          statementRecords.push(tipData);
+      if (tipsList) {
+        for (const [tipKey, tipData] of Object.entries(tipsList)) {
+          if (
+            moment(tipData.created).isAfter(
+              moment(driver.statementStartDate)
+            ) &&
+            moment(tipData.created).isBefore(moment(driver.statementEndDate))
+          ) {
+            statementRecords.push(tipData);
+          } else if (
+            driver.statementStartDate === 0 &&
+            driver.statementEndDate === 0
+          ) {
+            statementRecords.push(tipData);
+          }
         }
       }
     });
@@ -892,126 +892,225 @@ async function generateEarningStatements(driverId, driver) {
     .equalTo(driverId)
     .once("value", async function (snapshot) {
       const tripsList = snapshot.val();
-      for (const [tripKey, tripData] of Object.entries(tripsList)) {
-        if (
-          moment(tripData.created).isAfter(moment(driver.statementStartDate)) &&
-          moment(tripData.created).isBefore(moment(driver.statementEndDate))
-        ) {
-          statementRecords.push(tripData);
-        } else if (
-          driver.statementStartDate === 0 &&
-          driver.statementEndDate === 0
-        ) {
-          statementRecords.push(tripData);
+      if (tripsList) {
+        for (const [tripKey, tripData] of Object.entries(tripsList)) {
+          if (
+            moment(tripData.created).isAfter(
+              moment(driver.statementStartDate)
+            ) &&
+            moment(tripData.created).isBefore(moment(driver.statementEndDate))
+          ) {
+            statementRecords.push(tripData);
+          } else if (
+            driver.statementStartDate === 0 &&
+            driver.statementEndDate === 0
+          ) {
+            statementRecords.push(tripData);
+          }
         }
       }
     });
 
   functions.logger.log("statementRecords", statementRecords);
 
-  let emailStatement = (
-    await admin.database().ref("email-templates/statement").once("value")
-  ).val();
+  /**
+   * Statement Email Data
+   */
 
-  emailStatement.template = emailStatement.template.replace(
-    new RegExp("{name}", "g"),
-    driver.name
+  // Header
+  let commonHeaderTemplate = (
+    await admin.database().ref("email-templates/header").once("value")
+  ).val();
+  commonHeaderTemplate.template = commonHeaderTemplate.template.replace(
+    new RegExp("{date}", "g"),
+    moment().format("Do MMMM YYYY")
   );
-  emailStatement.template = emailStatement.template.replace(
-    new RegExp("{body}", "g"),
-    await makeDataTable(statementRecords)
-  );
-  emailStatement.template = emailStatement.template.replace(
-    new RegExp("{phoneNumber}", "g"),
-    driver.phoneNumber
-  );
-  emailStatement.template = emailStatement.template.replace(
-    new RegExp("{email}", "g"),
-    driver.email
-  );
-  emailStatement.template = emailStatement.template.replace(
+  commonHeaderTemplate.template = commonHeaderTemplate.template.replace(
     new RegExp("{companyLogo}", "g"),
     companyData.logo
   );
+  commonHeaderTemplate.template = commonHeaderTemplate.template.replace(
+    new RegExp("{companyName}", "g"),
+    companyData.name.toUpperCase()
+  );
+
+  // Body
+  let emailStatement = (
+    await admin.database().ref("email-templates/statement-email").once("value")
+  ).val();
   emailStatement.template = emailStatement.template.replace(
+    new RegExp("{riderName}", "g"),
+    driver.name
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{statementStartDate}", "g"),
+    moment(driver.statementStartDate).format("Do MMM YYYY")
+  );
+  emailStatement.template = emailStatement.template.replace(
+    new RegExp("{statementEndDate}", "g"),
+    moment(driver.statementEndDate).format("Do MMM YYYY")
+  );
+
+  // Footer
+  let commonFooterTemplate = (
+    await admin.database().ref("email-templates/footer").once("value")
+  ).val();
+
+  /**
+   * Statement PDF Data
+   */
+
+  // Body
+  let emailStatementPdf = (
+    await admin.database().ref("email-templates/statement").once("value")
+  ).val();
+  emailStatementPdf.template = emailStatementPdf.template.replace(
+    new RegExp("{name}", "g"),
+    driver.name
+  );
+  emailStatementPdf.template = emailStatementPdf.template.replace(
+    new RegExp("{body}", "g"),
+    await makeDataTable(statementRecords)
+  );
+  emailStatementPdf.template = emailStatementPdf.template.replace(
+    new RegExp("{phoneNumber}", "g"),
+    driver.phoneNumber
+  );
+  emailStatementPdf.template = emailStatementPdf.template.replace(
+    new RegExp("{email}", "g"),
+    driver.email
+  );
+  emailStatementPdf.template = emailStatementPdf.template.replace(
     new RegExp("{currentYear}", "g"),
     `${new Date().getFullYear()}`
   );
 
-  let header = ejs.render("");
-  let body = ejs.render(emailStatement.template);
-  let footer = ejs.render("");
+  /**
+   * Render Data
+   */
 
-  let start = moment(driver.statementStartDate).format("Do MMM YYYY");
-  let end = moment(driver.statementEndDate).format("Do MMM YYYY");
+  // Statement Email Render Data
+  let emailStatementHeader = ejs.render(commonHeaderTemplate.template);
+  let emailStatementBody = ejs.render(emailStatement.template);
+  let emailStatementFooter = ejs.render(commonFooterTemplate.template);
 
-  // let emailTitle;
-  // if(driver.statementStartDate === 0 && driver.statementStartDate === 0){
-  //   emailTitle = `Earnings till today`;
-  // }else if() {
-  //   emailTitle = `Earnings from ${start} to ${end}`;
-  // }else {
-  //   emailTitle = `Earnings from ${start} to ${end}`;
-  // }
+  // Statement PDF Render Data
+  let emailStatementPdfHeader = ejs.render("");
+  let emailStatementPdfBody = ejs.render(emailStatementPdf.template);
+  let emailStatementPdfFooter = ejs.render("");
 
-  let emailData = {
-    pageTitle: `Earnings from ${start} to ${end}`,
-    header,
-    body,
-    footer,
+  let emailTitle;
+  let fileName;
+  if (driver.statementStartDate === 0 && driver.statementStartDate === 0) {
+    emailTitle = fileName = `Earning till ${moment().format("Do MMM YYYY")}`;
+  } else if (
+    moment(driver.statementStartDate).isSame(moment(), "d") &&
+    moment(driver.statementEndDate).isSame(moment(), "d")
+  ) {
+    emailTitle = fileName = `Today's Earning`;
+  } else {
+    emailTitle = `Earning from ${moment(driver.statementStartDate).format(
+      "DD/MM/YYYY"
+    )} - ${moment(driver.statementEndDate).format("DD/MM/YYYY")}`;
+    fileName = `Earning ${moment(driver.statementStartDate).format(
+      "DDMMYYYY"
+    )}-${moment(driver.statementEndDate).format("DDMMYYYY")}`;
+  }
+
+  let statementEmailData = {
+    pageTitle: emailTitle,
+    header: emailStatementHeader,
+    body: emailStatementBody,
+    footer: emailStatementFooter,
   };
-  ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
-    if (err) {
-      functions.logger.error(err);
-      return res.status(200).json({
-        status: -1,
-        msg: "Unable To Send Statement Via Mail.",
-      });
-    } else {
-      attachments = [];
-      let callBack = function (err1, info) {
-        if (err1) {
-          functions.logger.error(err1);
-          return res.status(200).json({
-            status: -1,
-            msg: "Error occured while sending mail.",
-          });
-        } else {
-          functions.logger.info(info);
-          return res.status(200).json({
-            status: 1,
-            msg: "Mail sent successfully.",
-          });
-        }
-      };
-      let doc = new jsPDF();
-      doc.html(html, {
-        callback: (pdf) => {
-          attachments = [
-            {
-              filename: "Statement.pdf",
-              path: pdf.output("datauristring"),
-              contentType: "application/pdf",
-            },
-          ];
-        },
-      });
-      sendEmail(
-        {
-          to: driver.email,
-          bcc: null,
-          subject: `Earnings from ${start} to ${end}`,
-          html,
-          attachments,
-        },
-        callBack
-      );
+
+  let statementPdfData = {
+    pageTitle: emailTitle,
+    header: emailStatementPdfHeader,
+    body: emailStatementPdfBody,
+    footer: emailStatementPdfFooter,
+  };
+
+  ejs.renderFile(
+    __dirname + "/email.ejs",
+    statementEmailData,
+    function (err, html) {
+      if (err) {
+        functions.logger.error("if err", err);
+        return res.status(200).json({
+          status: -1,
+          msg: "Unable To Send Statement Via Mail.",
+        });
+      } else {
+        renderPdfHtml(driver, statementPdfData, fileName, html);
+      }
     }
-  });
-  admin
-    .database()
-    .ref("drivers/" + driverId)
-    .update({ triggerStatementGeneration: false });
+  );
+}
+
+function renderPdfHtml(driver, statementPdfData, fileName, emailHtml) {
+  ejs.renderFile(
+    __dirname + "/email.ejs",
+    statementPdfData,
+    function (err, html) {
+      attachments = [];
+      if (err) {
+        functions.logger.error("err", err);
+        return res.status(200).json({
+          status: -1,
+          msg: "Unable To Send Statement Via Mail.",
+        });
+      } else {
+        pdf
+          .create(html, {
+            timeout: "200000",
+            format: "A4",
+            header: {
+              height: "15mm",
+            },
+            footer: {
+              height: "15mm",
+            },
+          })
+          .toBuffer(function (error, buffer) {
+            if (error) {
+              functions.logger.log("error:", error);
+            } else {
+              attachments.push({
+                filename: fileName,
+                content: buffer,
+                contentType: "application/pdf",
+              });
+              let callBack = function (err1, info) {
+                if (err1) {
+                  functions.logger.error(err1);
+                  return res.status(200).json({
+                    status: -1,
+                    msg: "Error occured while sending mail.",
+                  });
+                } else {
+                  functions.logger.info(info);
+                  return res.status(200).json({
+                    status: 1,
+                    msg: "Mail sent successfully.",
+                  });
+                }
+              };
+              sendEmail(
+                {
+                  to: driver.email,
+                  bcc: null,
+                  subject: statementPdfData.pageTitle,
+                  html: emailHtml,
+                  attachments,
+                },
+                callBack
+              );
+            }
+          });
+      }
+    }
+  );
 }
 
 async function makeDataTable(statementRecords) {
@@ -1020,16 +1119,16 @@ async function makeDataTable(statementRecords) {
       width="100%" style="border: 1px solid #efefef;">
       <thead>
           <tr>
-              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+              <th style="font-size: 14px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
                   align="left">Date
               </th>
-              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+              <th style="font-size: 14px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
                   align="left">Description
               </th>
-              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+              <th style="font-size: 14px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
                   align="left">Type
               </th>
-              <th style="font-size: 16px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
+              <th style="font-size: 14px; line-height: 35px; color: #333333; padding-top: 10px; padding-bottom: 10px; background-color: #f5f5f5; padding-left: 10px; padding-right: 10px;"
                   align="center">Amount
               </th>
           </tr>
@@ -1042,16 +1141,16 @@ async function makeDataTable(statementRecords) {
       record.earningType.slice(1);
     template += `<tr style="border-bottom: 1px solid #efefef;">
   <td
-      style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
+      style="font-size: 12px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
       ${moment(record.created).format("Do MMM YYYY hh:mm A")}
   </td>
   <td
-      style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
+      style="font-size: 12px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
       ${record.description}</td>
   <td
-      style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
+      style="font-size: 12px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;">
       ${record.typeText}</td>
-  <td style="font-size: 14px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;"
+  <td style="font-size: 12px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;"
       align="center">
       + <span class="amount-credit">$${record.amount}</span></td>
 </tr>`;
@@ -3517,6 +3616,51 @@ exports.onDriverLocationDelete = functions.database
       .update({
         onlineHours: onlineTime,
       });
+  });
+
+exports.onDriverLocationUpdate = functions.database
+  .ref("driver-locations/{id}")
+  .onUpdate(async function (snapshot, context) {
+    const id = context.params.id;
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+    let todayOnlineTime = 0;
+    const duration = moment
+      .duration(moment(after.last_active).diff(moment(before.last_active)))
+      .asMilliseconds();
+    const driverLogins = (
+      await admin
+        .database()
+        .ref(`drivers-logins/${id}/${moment().format("DD-MM-YYYY")}`)
+        .once("value")
+    ).val();
+    functions.logger.log(
+      "driverLogins",
+      moment().format("DD-MM-YYYY-HH-mm-ss"),
+      driverLogins
+    );
+    if (driverLogins) {
+      if (driverLogins.hasOwnProperty("onlineHours")) {
+        todayOnlineTime = Number(driverLogins.onlineHours) + Number(duration);
+      } else {
+        todayOnlineTime = Number(duration);
+      }
+      admin
+        .database()
+        .ref(`drivers-logins/${id}/${moment().format("DD-MM-YYYY")}`)
+        .update({
+          onlineHours: todayOnlineTime,
+          lastUpdated: Date.now(),
+        });
+    } else {
+      admin
+        .database()
+        .ref(`drivers-logins/${id}/${moment().format("DD-MM-YYYY")}`)
+        .update({
+          onlineHours: duration,
+          lastUpdated: Date.now(),
+        });
+    }
   });
 
 /************************************End Live DB Functions*************************************************/
