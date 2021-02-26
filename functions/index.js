@@ -1187,7 +1187,7 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
           bankName: driver.bankName ? driver.bankName : null,
           accNo: driver.accNo ? driver.accNo : null,
           holderName: driver.holderName ? driver.holderName : null,
-          swiftCode: driver.swiftCode ? driver.swiftCode : null,
+          routingNumber: driver.routingNumber ? driver.routingNumber : null,
         },
         status: "pending",
         created: Date.now(),
@@ -3551,11 +3551,48 @@ exports.dirverUpdateTrigger = functions.database
     });
   });
 
-exports.highDemandAreaNotificationTrigger = functions.database
+exports.highDemandAreaNotificationUpdateTrigger = functions.database
   .ref("high-demand-areas/{id}")
   .onUpdate(function (snapshot, context) {
     const areaId = context.params.id;
     const area = snapshot.after.val();
+    if (area.sendNotification && area.active) {
+      admin
+        .database()
+        .ref("drivers")
+        .once("value", async function (snapshot) {
+          drivers = snapshot.val();
+          for (const [driverKey, driversData] of Object.entries(drivers)) {
+            const driverNotification = (
+              await admin
+                .database()
+                .ref("driver-push-notifications/" + driverKey)
+                .once("value")
+            ).val();
+            const msgDriver = `${area.address} is notified as a high demand area!`;
+            if (driversData.alwaysOn) {
+              if (driverNotification.isPushEnabled) {
+                sendMessage(
+                  driverNotification.pushToken,
+                  "High Demand Alert!",
+                  "Driver Notification: " + msgDriver
+                );
+              }
+            }
+          }
+          admin
+            .database()
+            .ref("high-demand-areas/" + areaId)
+            .update({ sendNotification: false });
+        });
+    }
+  });
+
+exports.highDemandAreaNotificationCreateTrigger = functions.database
+  .ref("high-demand-areas/{id}")
+  .onCreate(function (snapshot, context) {
+    const areaId = context.params.id;
+    const area = snapshot.val();
     if (area.sendNotification) {
       admin
         .database()
