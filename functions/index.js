@@ -46,16 +46,17 @@ const TRIP_STATUS_CANCELED = "canceled";
 /**
  * Uncomment for local testing
  */
-// var serviceAccount = require("E:/Projects/Salim/salim-admin-fire-build/functions/wrapspeedtaxi-286206-b824f46fc5fb.json");
+// const serviceAccount = require("E:/Projects/Salim/salim-admin-fire-build/functions/wrapspeedtaxi-286206-b824f46fc5fb.json");
 
 // admin.initializeApp({
 //   credential: admin.credential.cert(serviceAccount),
 //   databaseURL: "https://wrapspeedtaxi-286206.firebaseio.com",
+//   // storageBucket: "wrapspeedtaxi-286206.appspot.com",
 // });
 
-/**
- * Uncomment while uploading to production
- */
+// /**
+//  * Uncomment while uploading to production
+//  */
 admin.initializeApp();
 
 function btoa(str) {
@@ -687,6 +688,17 @@ exports.updateDriver = functions.database
       updateCheck = true;
     }
 
+    if (after.triggerWithdrawal) {
+      admin
+        .database()
+        .ref("drivers/" + key)
+        .update({ triggerWithdrawal: false });
+      const businessData = (
+        await admin.database().ref("business-management").once("value")
+      ).val();
+      makeMoneyTransferRequestToAdmin(key, after, businessData);
+    }
+
     if (after.rideRejectionCount >= 3) {
       let companyData = (
         await admin.database().ref("company-details").once("value")
@@ -1167,8 +1179,8 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
       .once("value")
   ).val();
   const minimumAmount = driver.minimumWalletAmount
-    ? parseFloat(driver.minimumWalletAmount).toFixed(2)
-    : parseFloat(businessData.minAmountInWallet).toFixed(2);
+    ? parseFloat(driver.minimumWalletAmount)
+    : parseFloat(businessData.minAmountInWallet);
   if (
     walletDetails &&
     parseFloat(walletDetails.balance) > parseFloat(minimumAmount)
@@ -1179,10 +1191,8 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
       .push({
         driverId: key,
         driverName: driver.name,
-        minimumAmountToMaintain: parseFloat(minimumAmount).toFixed(2),
-        withdrawalAmount: (
-          parseFloat(walletDetails.balance) - parseFloat(minimumAmount)
-        ).toFixed(2),
+        minimumAmountToMaintain: parseFloat(minimumAmount),
+        withdrawalAmount: parseFloat(walletDetails.balance - minimumAmount),
         bankDetails: {
           bankName: driver.bankName ? driver.bankName : null,
           accNo: driver.accNo ? driver.accNo : null,
@@ -1196,10 +1206,9 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
       .database()
       .ref("driver-wallets/" + key)
       .update({
-        balance: (
+        balance:
           parseFloat(walletDetails.balance) -
-          (parseFloat(walletDetails.balance) - parseFloat(minimumAmount))
-        ).toFixed(2),
+          parseFloat(walletDetails.balance - minimumAmount),
       });
     admin
       .database()
@@ -1208,9 +1217,7 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
         admin_id: null,
         type: 0,
         driver_id: key,
-        amount: (
-          parseFloat(walletDetails.balance) - parseFloat(minimumAmount)
-        ).toFixed(2),
+        amount: parseFloat(walletDetails.balance) - parseFloat(minimumAmount),
         description: "Wallet money withdrawal",
         created: Date.now(),
         tripId: null,
@@ -3111,6 +3118,7 @@ exports.tripPassengerUpdateTrigger = functions.database
           if (err) {
             functions.logger.error(err);
           } else {
+            functions.logger.log("INVOICE HTML", html);
             let callBack = function (err1, info) {
               if (err1) {
                 functions.logger.error(err1);
@@ -3120,6 +3128,12 @@ exports.tripPassengerUpdateTrigger = functions.database
                 mailer.close();
               }
             };
+            admin
+              .database()
+              .ref("trip-passengers/" + key)
+              .update({
+                invoiceTemplate: html,
+              });
             sendEmail(
               {
                 to: passenger.email,
@@ -3148,7 +3162,7 @@ exports.tripPassengerUpdateTrigger = functions.database
         admin
           .database()
           .ref("driver-wallets/" + driverId)
-          .update({ balance: parseFloat(balance.toFixed(2)) });
+          .update({ balance: parseFloat(balance) });
         admin
           .database()
           .ref("payment-transactions/wallet")
@@ -3167,7 +3181,27 @@ exports.tripPassengerUpdateTrigger = functions.database
             driverId: driverId,
             driverName: driver.name,
             description: "Cashless ride earning",
-            amount: parseFloat(after.fareDetails.commission.toFixed(2)),
+            amount: parseFloat(
+              (after.fareDetails.baseFare + after.waitingCharges).toFixed(2)
+            ),
+            finalFare: parseFloat(after.fareDetails.finalFare.toFixed(2)),
+            amountToDeposit: parseFloat(
+              (
+                after.fareDetails.commission +
+                after.fareDetails.tax +
+                after.fareDetails.donationAdmin +
+                after.fareDetails.rideInsurance
+              ).toFixed(2)
+            ),
+            tax: parseFloat(after.fareDetails.tax.toFixed(2)),
+            commission: parseFloat(after.fareDetails.commission.toFixed(2)),
+            waitingCharges: parseFloat(after.waitingCharges.toFixed(2)),
+            rideInsurance: parseFloat(
+              after.fareDetails.waitingCharges.toFixed(2)
+            ),
+            donationAdmin: parseFloat(
+              after.fareDetails.donationAdmin.toFixed(2)
+            ),
             created: Date.now(),
             earningType: "TRIP",
             tripId: key,
@@ -3190,7 +3224,7 @@ exports.tripPassengerUpdateTrigger = functions.database
         admin
           .database()
           .ref("driver-wallets/" + driverId)
-          .update({ balance: parseFloat(balance.toFixed(2)) });
+          .update({ balance: parseFloat(balance) });
         admin
           .database()
           .ref("payment-transactions/wallet")
@@ -3211,8 +3245,26 @@ exports.tripPassengerUpdateTrigger = functions.database
             driverId: driverId,
             driverName: driver.name,
             description: "Cash ride earning",
+            finalFare: parseFloat(after.fareDetails.finalFare.toFixed(2)),
             amount: parseFloat(
-              (finalFare - after.fareDetails.commission).toFixed(2)
+              (after.fareDetails.baseFare + after.waitingCharges).toFixed(2)
+            ),
+            amountToDeposit: parseFloat(
+              (
+                after.fareDetails.commission +
+                after.fareDetails.tax +
+                after.fareDetails.donationAdmin +
+                after.fareDetails.rideInsurance
+              ).toFixed(2)
+            ),
+            tax: parseFloat(after.fareDetails.tax.toFixed(2)),
+            commission: parseFloat(after.fareDetails.commission.toFixed(2)),
+            waitingCharges: parseFloat(after.waitingCharges.toFixed(2)),
+            rideInsurance: parseFloat(
+              after.fareDetails.rideInsurance.toFixed(2)
+            ),
+            donationAdmin: parseFloat(
+              after.fareDetails.donationAdmin.toFixed(2)
             ),
             created: Date.now(),
             earningType: "TRIP",
@@ -3653,6 +3705,35 @@ exports.onDriverLocationDelete = functions.database
       .update({
         onlineHours: onlineTime,
       });
+    admin.database().ref(`driver-login-history/${id}`).push({
+      action: 0,
+      description: "Logged Out",
+      created: Date.now(),
+      driverId: id,
+      driverName: deletedLocation.name,
+      lat: deletedLocation.lat,
+      lng: deletedLocation.lng,
+      workTiming: deletedLocation.workTiming,
+      vehicleType: deletedLocation.vehicleType,
+    });
+  });
+
+exports.onDriverLocationCreate = functions.database
+  .ref("driver-locations/{id}")
+  .onCreate(function (snapshot, context) {
+    const driverId = context.params.id;
+    const location = snapshot.val();
+    admin.database().ref(`driver-login-history/${driverId}`).push({
+      action: 1,
+      description: "Logged In",
+      created: Date.now(),
+      driverId,
+      driverName: location.name,
+      lat: location.lat,
+      lng: location.lng,
+      workTiming: location.workTiming,
+      vehicleType: location.vehicleType,
+    });
   });
 
 exports.onDriverLocationUpdate = functions.database
@@ -3688,14 +3769,20 @@ exports.onDriverLocationUpdate = functions.database
         .update({
           onlineHours: todayOnlineTime,
           lastUpdated: Date.now(),
+          driverId: id,
+          driverName: after.name,
         });
     } else {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       admin
         .database()
         .ref(`drivers-logins/${id}/${moment().format("DD-MM-YYYY")}`)
         .update({
           onlineHours: duration,
-          lastUpdated: Date.now(),
+          lastUpdated: today.getTime(),
+          driverId: id,
+          driverName: after.name,
         });
     }
   });
