@@ -2127,13 +2127,13 @@ exports.walletWithdrawalMonthlyScheduler = functions.pubsub
       });
   });
 
-exports.complaintCreateTrigger = functions.database
-  .ref("complaints/{id}")
+exports.passengerComplaintCreateTrigger = functions.database
+  .ref("PASSENGER-raised-complaints/{id}")
   .onCreate(async function (snapshot, context) {
     const id = context.params.id;
     const original = snapshot.val();
-    let type = original.driverId ? "drivers" : "passengers";
-    let userId = original.driverId ? original.driverId : original.passengerId;
+    let type = "passengers";
+    let userId = original.passengerId;
     const user = (
       await admin
         .database()
@@ -2181,9 +2181,9 @@ exports.complaintCreateTrigger = functions.database
       "Complaint Registered"
     );
     let content = "Complaint Registered By ";
-    content += original.driverId ? "Driver : " : "Passenger : ";
+    content += "Passenger : ";
     content += user.name.toUpperCase() + "<br/>";
-    content += "<b>Subject Of Complaint</b> : " + original.subject;
+    content += "<b>Subject Of Complaint</b> : " + original.complaintDescription;
     emailBody.template = emailBody.template.replace(
       new RegExp("{content}", "g"),
       content
@@ -2211,6 +2211,7 @@ exports.complaintCreateTrigger = functions.database
       if (err) {
         functions.logger.error(err);
       } else {
+        functions.logger.log("html", html);
         let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
@@ -2231,15 +2232,15 @@ exports.complaintCreateTrigger = functions.database
     });
   });
 
-exports.complaintUpdateTrigger = functions.database
-  .ref("complaints/{id}")
+exports.passengerComplaintUpdateTrigger = functions.database
+  .ref("PASSENGER-raised-complaints/{id}")
   .onUpdate(async function (snapshot, context) {
     const id = context.params.id;
     const before = snapshot.before.val();
     const after = snapshot.after.val();
 
-    let type = after.driverId ? "drivers" : "passengers";
-    let userId = after.driverId ? after.driverId : after.passengerId;
+    let type = "passengers";
+    let userId = after.passengerId;
     const user = (
       await admin
         .database()
@@ -2260,160 +2261,124 @@ exports.complaintUpdateTrigger = functions.database
     const companyData = (
       await admin.database().ref("company-details").once("value")
     ).val();
-    if (after.status == "1" && before.status != "1") {
-      let emailHeader = (
-        await admin.database().ref("email-templates/header").once("value")
+    let emailHeader = (
+      await admin.database().ref("email-templates/header").once("value")
+    ).val();
+
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
+    let emailBody;
+    if (before.status != after.status) {
+      let content = "Complaint Registered By ";
+      let title = "";
+      if (after.status == "Pending") {
+        emailBody = (
+          await admin
+            .database()
+            .ref("email-templates/complaint-processing")
+            .once("value")
+        ).val();
+        title = "Complaint Is Marked Pending";
+      } else if (after.status == "Processing") {
+        emailBody = (
+          await admin
+            .database()
+            .ref("email-templates/complaint-processing")
+            .once("value")
+        ).val();
+        title = "Complaint Is Marked Under Processing";
+      } else {
+        emailBody = (
+          await admin
+            .database()
+            .ref("email-templates/complaint-resolved")
+            .once("value")
+        ).val();
+        title = "Complaint Is Marked Resolved";
+      }
+      content += "Passenger : ";
+      content += user.name.toUpperCase() + "<br/>";
+      content +=
+        "<b>Subject Of Complaint</b> : " +
+        original.complaintDescription +
+        "<br/>";
+      content += title;
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{title}", "g"),
+        title
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{content}", "g"),
+        content
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
       ).val();
 
-      emailHeader.template = emailHeader.template.replace(
-        new RegExp("{date}", "g"),
-        moment().format("Do MMM YYYY hh:mm A")
-      );
-      emailHeader.template = emailHeader.template.replace(
-        new RegExp("{companyLogo}", "g"),
-        companyData.logo
-      );
-      emailHeader.template = emailHeader.template.replace(
-        new RegExp("{companyName}", "g"),
-        companyData.name.toUpperCase()
-      );
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
 
-      let emailBody;
-      if (before.status != after.status) {
-        let content = "Complaint Registered By ";
-        let title = "";
-        if (after.status == 0) {
-          emailBody = (
-            await admin
-              .database()
-              .ref("email-templates/complaint-processing")
-              .once("value")
-          ).val();
-          title = "Complaint Is Marked Pending";
-        } else if (after.status == 1) {
-          emailBody = (
-            await admin
-              .database()
-              .ref("email-templates/complaint-processing")
-              .once("value")
-          ).val();
-          title = "Complaint Is Marked Under Processing";
+      let emailData = {
+        pageTitle: "Complaint Is Under Processing",
+        header,
+        body,
+        footer,
+      };
+
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+        if (err) {
+          functions.logger.error(err);
         } else {
-          emailBody = (
-            await admin
-              .database()
-              .ref("email-templates/complaint-resolved")
-              .once("value")
-          ).val();
-          title = "Complaint Is Marked Resolved";
-        }
-        content += original.driverId ? "Driver : " : "Passenger : ";
-        content += user.name.toUpperCase() + "<br/>";
-        content +=
-          "<b>Subject Of Complaint</b> : " + original.subject + "<br/>";
-        content += title;
-        emailBody.template = emailBody.template.replace(
-          new RegExp("{title}", "g"),
-          title
-        );
-        emailBody.template = emailBody.template.replace(
-          new RegExp("{content}", "g"),
-          content
-        );
-        emailBody.template = emailBody.template.replace(
-          new RegExp("{companyWeb}", "g"),
-          "https://wrapspeedtaxi.com/"
-        );
-        let emailFooter = (
-          await admin.database().ref("email-templates/footer").once("value")
-        ).val();
-
-        let header = ejs.render(emailHeader.template);
-        let body = ejs.render(emailBody.template);
-        let footer = ejs.render(emailFooter.template);
-
-        let emailData = {
-          pageTitle: "Complaint Is Under Processing",
-          header,
-          body,
-          footer,
-        };
-
-        ejs.renderFile(
-          __dirname + "/email.ejs",
-          emailData,
-          function (err, html) {
-            if (err) {
-              functions.logger.error(err);
+          let callBack = function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
             } else {
-              let callBack = function (err1, info) {
-                if (err1) {
-                  functions.logger.error(err1);
-                } else {
-                  functions.logger.info(info);
-                }
-              };
-              sendEmail(
-                {
-                  to: user.email,
-                  bcc: adminData.email,
-                  subject: title,
-                  html,
-                },
-                callBack
-              );
+              functions.logger.info(info);
             }
-          }
-        );
-      }
+          };
+          sendEmail(
+            {
+              to: user.email,
+              bcc: adminData.email,
+              subject: title,
+              html,
+            },
+            callBack
+          );
+        }
+      });
     }
   });
 
-exports.complaintResponseTrigger = functions.database
-  .ref("complaint-responses/{id}")
+exports.driverComplaintCreateTrigger = functions.database
+  .ref("DRIVER-raised-complaints/{id}")
   .onCreate(async function (snapshot, context) {
     const id = context.params.id;
     const original = snapshot.val();
-    const complaintData = (
-      await admin
-        .database()
-        .ref("complaints/" + original.complaintId)
-        .once("value")
-    ).val();
-    let type = complaintData.driverId ? "drivers" : "passengers";
-    let userId = complaintData.driverId
-      ? complaintData.driverId
-      : complaintData.passengerId;
+    let type = "drivers";
+    let userId = original.driverId;
     const user = (
       await admin
         .database()
         .ref(type + "/" + userId)
         .once("value")
     ).val();
-    let sender;
-    if (original.adminId) {
-      sender = (
-        await admin
-          .database()
-          .ref("admins" + "/" + original.adminId)
-          .once("value")
-      ).val();
-    } else if (original.driverId) {
-      sender = (
-        await admin
-          .database()
-          .ref("drivers" + "/" + original.driverId)
-          .once("value")
-      ).val();
-    } else {
-      sender = (
-        await admin
-          .database()
-          .ref("passengers" + "/" + original.passengerId)
-          .once("value")
-      ).val();
-    }
-
     const admins = await admin
       .database()
       .ref("admins")
@@ -2421,12 +2386,11 @@ exports.complaintResponseTrigger = functions.database
       .equalTo("0")
       .limitToFirst(1)
       .once("value");
-    let adminData;
-
+    let adminData = {};
     for (const [key, value] of Object.entries(admins)) {
       adminData = value;
     }
-
+    functions.logger.info(adminData);
     const companyData = (
       await admin.database().ref("company-details").once("value")
     ).val();
@@ -2448,34 +2412,25 @@ exports.complaintResponseTrigger = functions.database
       companyData.name.toUpperCase()
     );
 
-    const title = "New Response To Complaint : #" + id;
-
     let emailBody = (
-      await admin
-        .database()
-        .ref("email-templates/new-complaint-response")
-        .once("value")
+      await admin.database().ref("email-templates/new-complaint").once("value")
     ).val();
-
     emailBody.template = emailBody.template.replace(
       new RegExp("{title}", "g"),
-      title
+      "Complaint Registered"
     );
-
-    let content = "New Response To Complaint : #" + id + "<br/>";
-    content += "<b>Sent From  : </b> : " + sender.name + "<br/>";
-    content += "<b>Description : </b> : " + original.description + "<br/>";
-
+    let content = "Complaint Registered By ";
+    content += "Driver : ";
+    content += user.name.toUpperCase() + "<br/>";
+    content += "<b>Subject Of Complaint</b> : " + original.complaintDescription;
     emailBody.template = emailBody.template.replace(
       new RegExp("{content}", "g"),
       content
     );
-
     emailBody.template = emailBody.template.replace(
       new RegExp("{companyWeb}", "g"),
       "https://wrapspeedtaxi.com/"
     );
-
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
     ).val();
@@ -2485,7 +2440,7 @@ exports.complaintResponseTrigger = functions.database
     let footer = ejs.render(emailFooter.template);
 
     let emailData = {
-      pageTitle: title,
+      pageTitle: "Complaint Registered",
       header,
       body,
       footer,
@@ -2495,6 +2450,7 @@ exports.complaintResponseTrigger = functions.database
       if (err) {
         functions.logger.error(err);
       } else {
+        functions.logger.log("html", html);
         let callBack = function (err1, info) {
           if (err1) {
             functions.logger.error(err1);
@@ -2504,8 +2460,9 @@ exports.complaintResponseTrigger = functions.database
         };
         sendEmail(
           {
-            to: original.adminId ? user.email : adminData.email,
-            subject: title,
+            to: user.email,
+            bcc: adminData.email,
+            subject: "Complaint Registered",
             html,
           },
           callBack
@@ -2513,6 +2470,527 @@ exports.complaintResponseTrigger = functions.database
       }
     });
   });
+
+exports.driverComplaintUpdateTrigger = functions.database
+  .ref("DRIVER-raised-complaints/{id}")
+  .onUpdate(async function (snapshot, context) {
+    const id = context.params.id;
+    const before = snapshot.before.val();
+    const after = snapshot.after.val();
+
+    let type = "drivers";
+    let userId = after.driverId;
+    const user = (
+      await admin
+        .database()
+        .ref(type + "/" + userId)
+        .once("value")
+    ).val();
+    const admins = await admin
+      .database()
+      .ref("admins")
+      .orderByChild("role_id")
+      .equalTo("0")
+      .limitToFirst(1)
+      .once("value");
+    let adminData = {};
+    for (const [key, value] of Object.entries(admins)) {
+      adminData = value;
+    }
+    const companyData = (
+      await admin.database().ref("company-details").once("value")
+    ).val();
+    let emailHeader = (
+      await admin.database().ref("email-templates/header").once("value")
+    ).val();
+
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{date}", "g"),
+      moment().format("Do MMM YYYY hh:mm A")
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyLogo}", "g"),
+      companyData.logo
+    );
+    emailHeader.template = emailHeader.template.replace(
+      new RegExp("{companyName}", "g"),
+      companyData.name.toUpperCase()
+    );
+
+    let emailBody;
+    if (before.status != after.status) {
+      let content = "Complaint Registered By ";
+      let title = "";
+      if (after.status == "Pending") {
+        emailBody = (
+          await admin
+            .database()
+            .ref("email-templates/complaint-processing")
+            .once("value")
+        ).val();
+        title = "Complaint Is Marked Pending";
+      } else if (after.status == "Processing") {
+        emailBody = (
+          await admin
+            .database()
+            .ref("email-templates/complaint-processing")
+            .once("value")
+        ).val();
+        title = "Complaint Is Marked Under Processing";
+      } else {
+        emailBody = (
+          await admin
+            .database()
+            .ref("email-templates/complaint-resolved")
+            .once("value")
+        ).val();
+        title = "Complaint Is Marked Resolved";
+      }
+      content += "Driver : ";
+      content += user.name.toUpperCase() + "<br/>";
+      content +=
+        "<b>Subject Of Complaint</b> : " +
+        original.complaintDescription +
+        "<br/>";
+      content += title;
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{title}", "g"),
+        title
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{content}", "g"),
+        content
+      );
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{companyWeb}", "g"),
+        "https://wrapspeedtaxi.com/"
+      );
+      let emailFooter = (
+        await admin.database().ref("email-templates/footer").once("value")
+      ).val();
+
+      let header = ejs.render(emailHeader.template);
+      let body = ejs.render(emailBody.template);
+      let footer = ejs.render(emailFooter.template);
+
+      let emailData = {
+        pageTitle: "Complaint Is Under Processing",
+        header,
+        body,
+        footer,
+      };
+
+      ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+        if (err) {
+          functions.logger.error(err);
+        } else {
+          let callBack = function (err1, info) {
+            if (err1) {
+              functions.logger.error(err1);
+            } else {
+              functions.logger.info(info);
+            }
+          };
+          sendEmail(
+            {
+              to: user.email,
+              bcc: adminData.email,
+              subject: title,
+              html,
+            },
+            callBack
+          );
+        }
+      });
+    }
+  });
+
+// exports.complaintCreateTrigger = functions.database
+//   .ref("complaints/{id}")
+//   .onCreate(async function (snapshot, context) {
+//     const id = context.params.id;
+//     const original = snapshot.val();
+//     let type = original.driverId ? "drivers" : "passengers";
+//     let userId = original.driverId ? original.driverId : original.passengerId;
+//     const user = (
+//       await admin
+//         .database()
+//         .ref(type + "/" + userId)
+//         .once("value")
+//     ).val();
+//     const admins = await admin
+//       .database()
+//       .ref("admins")
+//       .orderByChild("role_id")
+//       .equalTo("0")
+//       .limitToFirst(1)
+//       .once("value");
+//     let adminData = {};
+//     for (const [key, value] of Object.entries(admins)) {
+//       adminData = value;
+//     }
+//     functions.logger.info(adminData);
+//     const companyData = (
+//       await admin.database().ref("company-details").once("value")
+//     ).val();
+
+//     let emailHeader = (
+//       await admin.database().ref("email-templates/header").once("value")
+//     ).val();
+
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{date}", "g"),
+//       moment().format("Do MMM YYYY hh:mm A")
+//     );
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{companyLogo}", "g"),
+//       companyData.logo
+//     );
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{companyName}", "g"),
+//       companyData.name.toUpperCase()
+//     );
+
+//     let emailBody = (
+//       await admin.database().ref("email-templates/new-complaint").once("value")
+//     ).val();
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{title}", "g"),
+//       "Complaint Registered"
+//     );
+//     let content = "Complaint Registered By ";
+//     content += original.driverId ? "Driver : " : "Passenger : ";
+//     content += user.name.toUpperCase() + "<br/>";
+//     content += "<b>Subject Of Complaint</b> : " + original.subject;
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{content}", "g"),
+//       content
+//     );
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{companyWeb}", "g"),
+//       "https://wrapspeedtaxi.com/"
+//     );
+//     let emailFooter = (
+//       await admin.database().ref("email-templates/footer").once("value")
+//     ).val();
+
+//     let header = ejs.render(emailHeader.template);
+//     let body = ejs.render(emailBody.template);
+//     let footer = ejs.render(emailFooter.template);
+
+//     let emailData = {
+//       pageTitle: "Complaint Registered",
+//       header,
+//       body,
+//       footer,
+//     };
+
+//     ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+//       if (err) {
+//         functions.logger.error(err);
+//       } else {
+//         let callBack = function (err1, info) {
+//           if (err1) {
+//             functions.logger.error(err1);
+//           } else {
+//             functions.logger.info(info);
+//           }
+//         };
+//         sendEmail(
+//           {
+//             to: user.email,
+//             bcc: adminData.email,
+//             subject: "Complaint Registered",
+//             html,
+//           },
+//           callBack
+//         );
+//       }
+//     });
+//   });
+
+// exports.complaintUpdateTrigger = functions.database
+//   .ref("complaints/{id}")
+//   .onUpdate(async function (snapshot, context) {
+//     const id = context.params.id;
+//     const before = snapshot.before.val();
+//     const after = snapshot.after.val();
+
+//     let type = after.driverId ? "drivers" : "passengers";
+//     let userId = after.driverId ? after.driverId : after.passengerId;
+//     const user = (
+//       await admin
+//         .database()
+//         .ref(type + "/" + userId)
+//         .once("value")
+//     ).val();
+//     const admins = await admin
+//       .database()
+//       .ref("admins")
+//       .orderByChild("role_id")
+//       .equalTo("0")
+//       .limitToFirst(1)
+//       .once("value");
+//     let adminData = {};
+//     for (const [key, value] of Object.entries(admins)) {
+//       adminData = value;
+//     }
+//     const companyData = (
+//       await admin.database().ref("company-details").once("value")
+//     ).val();
+//     if (after.status == "1" && before.status != "1") {
+//       let emailHeader = (
+//         await admin.database().ref("email-templates/header").once("value")
+//       ).val();
+
+//       emailHeader.template = emailHeader.template.replace(
+//         new RegExp("{date}", "g"),
+//         moment().format("Do MMM YYYY hh:mm A")
+//       );
+//       emailHeader.template = emailHeader.template.replace(
+//         new RegExp("{companyLogo}", "g"),
+//         companyData.logo
+//       );
+//       emailHeader.template = emailHeader.template.replace(
+//         new RegExp("{companyName}", "g"),
+//         companyData.name.toUpperCase()
+//       );
+
+//       let emailBody;
+//       if (before.status != after.status) {
+//         let content = "Complaint Registered By ";
+//         let title = "";
+//         if (after.status == 0) {
+//           emailBody = (
+//             await admin
+//               .database()
+//               .ref("email-templates/complaint-processing")
+//               .once("value")
+//           ).val();
+//           title = "Complaint Is Marked Pending";
+//         } else if (after.status == 1) {
+//           emailBody = (
+//             await admin
+//               .database()
+//               .ref("email-templates/complaint-processing")
+//               .once("value")
+//           ).val();
+//           title = "Complaint Is Marked Under Processing";
+//         } else {
+//           emailBody = (
+//             await admin
+//               .database()
+//               .ref("email-templates/complaint-resolved")
+//               .once("value")
+//           ).val();
+//           title = "Complaint Is Marked Resolved";
+//         }
+//         content += original.driverId ? "Driver : " : "Passenger : ";
+//         content += user.name.toUpperCase() + "<br/>";
+//         content +=
+//           "<b>Subject Of Complaint</b> : " + original.subject + "<br/>";
+//         content += title;
+//         emailBody.template = emailBody.template.replace(
+//           new RegExp("{title}", "g"),
+//           title
+//         );
+//         emailBody.template = emailBody.template.replace(
+//           new RegExp("{content}", "g"),
+//           content
+//         );
+//         emailBody.template = emailBody.template.replace(
+//           new RegExp("{companyWeb}", "g"),
+//           "https://wrapspeedtaxi.com/"
+//         );
+//         let emailFooter = (
+//           await admin.database().ref("email-templates/footer").once("value")
+//         ).val();
+
+//         let header = ejs.render(emailHeader.template);
+//         let body = ejs.render(emailBody.template);
+//         let footer = ejs.render(emailFooter.template);
+
+//         let emailData = {
+//           pageTitle: "Complaint Is Under Processing",
+//           header,
+//           body,
+//           footer,
+//         };
+
+//         ejs.renderFile(
+//           __dirname + "/email.ejs",
+//           emailData,
+//           function (err, html) {
+//             if (err) {
+//               functions.logger.error(err);
+//             } else {
+//               let callBack = function (err1, info) {
+//                 if (err1) {
+//                   functions.logger.error(err1);
+//                 } else {
+//                   functions.logger.info(info);
+//                 }
+//               };
+//               sendEmail(
+//                 {
+//                   to: user.email,
+//                   bcc: adminData.email,
+//                   subject: title,
+//                   html,
+//                 },
+//                 callBack
+//               );
+//             }
+//           }
+//         );
+//       }
+//     }
+//   });
+
+// exports.complaintResponseTrigger = functions.database
+//   .ref("complaint-responses/{id}")
+//   .onCreate(async function (snapshot, context) {
+//     const id = context.params.id;
+//     const original = snapshot.val();
+//     const complaintData = (
+//       await admin
+//         .database()
+//         .ref("complaints/" + original.complaintId)
+//         .once("value")
+//     ).val();
+//     let type = complaintData.driverId ? "drivers" : "passengers";
+//     let userId = complaintData.driverId
+//       ? complaintData.driverId
+//       : complaintData.passengerId;
+//     const user = (
+//       await admin
+//         .database()
+//         .ref(type + "/" + userId)
+//         .once("value")
+//     ).val();
+//     let sender;
+//     if (original.adminId) {
+//       sender = (
+//         await admin
+//           .database()
+//           .ref("admins" + "/" + original.adminId)
+//           .once("value")
+//       ).val();
+//     } else if (original.driverId) {
+//       sender = (
+//         await admin
+//           .database()
+//           .ref("drivers" + "/" + original.driverId)
+//           .once("value")
+//       ).val();
+//     } else {
+//       sender = (
+//         await admin
+//           .database()
+//           .ref("passengers" + "/" + original.passengerId)
+//           .once("value")
+//       ).val();
+//     }
+
+//     const admins = await admin
+//       .database()
+//       .ref("admins")
+//       .orderByChild("role_id")
+//       .equalTo("0")
+//       .limitToFirst(1)
+//       .once("value");
+//     let adminData;
+
+//     for (const [key, value] of Object.entries(admins)) {
+//       adminData = value;
+//     }
+
+//     const companyData = (
+//       await admin.database().ref("company-details").once("value")
+//     ).val();
+
+//     let emailHeader = (
+//       await admin.database().ref("email-templates/header").once("value")
+//     ).val();
+
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{date}", "g"),
+//       moment().format("Do MMM YYYY hh:mm A")
+//     );
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{companyLogo}", "g"),
+//       companyData.logo
+//     );
+//     emailHeader.template = emailHeader.template.replace(
+//       new RegExp("{companyName}", "g"),
+//       companyData.name.toUpperCase()
+//     );
+
+//     const title = "New Response To Complaint : #" + id;
+
+//     let emailBody = (
+//       await admin
+//         .database()
+//         .ref("email-templates/new-complaint-response")
+//         .once("value")
+//     ).val();
+
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{title}", "g"),
+//       title
+//     );
+
+//     let content = "New Response To Complaint : #" + id + "<br/>";
+//     content += "<b>Sent From  : </b> : " + sender.name + "<br/>";
+//     content += "<b>Description : </b> : " + original.description + "<br/>";
+
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{content}", "g"),
+//       content
+//     );
+
+//     emailBody.template = emailBody.template.replace(
+//       new RegExp("{companyWeb}", "g"),
+//       "https://wrapspeedtaxi.com/"
+//     );
+
+//     let emailFooter = (
+//       await admin.database().ref("email-templates/footer").once("value")
+//     ).val();
+
+//     let header = ejs.render(emailHeader.template);
+//     let body = ejs.render(emailBody.template);
+//     let footer = ejs.render(emailFooter.template);
+
+//     let emailData = {
+//       pageTitle: title,
+//       header,
+//       body,
+//       footer,
+//     };
+
+//     ejs.renderFile(__dirname + "/email.ejs", emailData, function (err, html) {
+//       if (err) {
+//         functions.logger.error(err);
+//       } else {
+//         let callBack = function (err1, info) {
+//           if (err1) {
+//             functions.logger.error(err1);
+//           } else {
+//             functions.logger.info(info);
+//           }
+//         };
+//         sendEmail(
+//           {
+//             to: original.adminId ? user.email : adminData.email,
+//             subject: title,
+//             html,
+//           },
+//           callBack
+//         );
+//       }
+//     });
+//   });
 
 exports.tripPassengerCreateTrigger = functions.database
   .ref("trip-passengers/{tripPassengerId}")
