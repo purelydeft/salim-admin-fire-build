@@ -9,6 +9,7 @@ const cors = require("cors")({
 });
 const https = require("https");
 var pdf = require("html-pdf");
+const ADMIN_EMAIL = "complain@gmail.com";
 
 const mailingDetails = {
   host: "smtp.gmail.com",
@@ -2222,7 +2223,7 @@ exports.passengerComplaintCreateTrigger = functions.database
         sendEmail(
           {
             to: user.email,
-            bcc: adminData.email,
+            bcc: ADMIN_EMAIL,
             subject: "Complaint Registered",
             html,
           },
@@ -2355,7 +2356,7 @@ exports.passengerComplaintUpdateTrigger = functions.database
           sendEmail(
             {
               to: user.email,
-              bcc: adminData.email,
+              bcc: ADMIN_EMAIL,
               subject: title,
               html,
             },
@@ -3684,6 +3685,7 @@ exports.tripPassengerUpdateTrigger = functions.database
             earningType: "TRIP",
             tripId: key,
             tripType: "CASHLESS",
+            vehicleType: after.vehicleType,
           });
       } else {
         let walletDetails = (
@@ -3748,6 +3750,7 @@ exports.tripPassengerUpdateTrigger = functions.database
             earningType: "TRIP",
             tripId: key,
             tripType: "CASH",
+            vehicleType: after.vehicleType,
           });
       }
     } else if (after.status == TRIP_STATUS_CANCELED) {
@@ -4263,6 +4266,116 @@ exports.onDriverLocationUpdate = functions.database
           driverName: after.name,
         });
     }
+  });
+
+// exports.driverBookingLogCreateTrigger = functions.database
+//   .ref("driver-booking-log/{driverId}/{date}")
+//   .onCreate(async function (snapshot, context) {
+//     const log = snapshot.val();
+//     const driverId = context.params.driverId;
+//     const date = context.params.date;
+//     functions.logger.log("log", log);
+//     functions.logger.log("driverId", driverId);
+//     functions.logger.log("date", date);
+//     admin
+//       .database()
+//       .ref("rewards")
+//       .once("value", async function (snapshot) {
+//         const rewards = snapshot.val();
+//         for (const [rewardKey, rewardData] of Object.entries(rewards)) {
+//           if (
+//             log.bookingCount >= rewardData.minBooking &&
+//             log.bookingCount <= rewardData.maxBooking
+//           ) {
+//             const walletDetails = (
+//               await admin
+//                 .database()
+//                 .ref("driver-wallets/" + driverId)
+//                 .once("value")
+//             ).val();
+//             admin
+//               .database()
+//               .ref("driver-wallets/" + driverId)
+//               .update({
+//                 balance: walletDetails.balance + rewardData.reward,
+//               });
+//             admin.database().ref("payment-transactions/wallet").push({
+//               admin_id: null,
+//               type: 1,
+//               driver_id: driverId,
+//               amount: rewardData.reward,
+//               description: "Rewarded for ride counts today",
+//               created: Date.now(),
+//               tripId: null,
+//               transactionType: "INCENTIVE",
+//               isReward: true,
+//             });
+//             admin.database().ref("earnings/incentives").push({
+//               driverId: driverId,
+//               amount: rewardData.reward,
+//               description: "Rewarded for ride counts today",
+//               created: Date.now(),
+//               earningType: "INCENTIVE",
+//               isReward: true,
+//             });
+//           }
+//         }
+//       });
+//   });
+
+exports.driverBookingLogUpdateTrigger = functions.database
+  .ref("driver-booking-log/{driverId}/{date}")
+  .onUpdate(async function (snapshot, context) {
+    const log = snapshot.after.val();
+    const driverId = context.params.driverId;
+    const date = context.params.date;
+    functions.logger.log("log", log);
+    functions.logger.log("driverId", driverId);
+    functions.logger.log("date", date);
+    admin
+      .database()
+      .ref("rewards")
+      .once("value", async function (snapshot) {
+        const rewards = snapshot.val();
+        for (const [rewardKey, rewardData] of Object.entries(rewards)) {
+          if (
+            log.bookingCount >= rewardData.minBooking &&
+            log.bookingCount <= rewardData.maxBooking
+          ) {
+            const walletDetails = (
+              await admin
+                .database()
+                .ref("driver-wallets/" + driverId)
+                .once("value")
+            ).val();
+            admin
+              .database()
+              .ref("driver-wallets/" + driverId)
+              .update({
+                balance: walletDetails.balance + rewardData.reward,
+              });
+            admin.database().ref("payment-transactions/wallet").push({
+              admin_id: null,
+              type: 1,
+              driver_id: driverId,
+              amount: rewardData.reward,
+              description: "Rewarded for ride counts today",
+              created: Date.now(),
+              tripId: null,
+              transactionType: "INCENTIVE",
+              isReward: true,
+            });
+            admin.database().ref("earnings/incentives").push({
+              driverId: driverId,
+              amount: rewardData.reward,
+              description: "Rewarded for ride counts today",
+              created: Date.now(),
+              earningType: "INCENTIVE",
+              isReward: true,
+            });
+          }
+        }
+      });
   });
 
 /************************************End Live DB Functions*************************************************/
