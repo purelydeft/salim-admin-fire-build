@@ -728,7 +728,8 @@ exports.updateDriver = functions.database
             }
           }
           if (purchasedDriverSubscriptions.length > 0) {
-            const currentlyPurchasedSubscription = purchasedDriverSubscriptions.reverse()[0];
+            const currentlyPurchasedSubscription =
+              purchasedDriverSubscriptions.reverse()[0];
             if (
               after.backToBackRideCount >=
               currentlyPurchasedSubscription.btbRideCount
@@ -3099,6 +3100,12 @@ exports.tripPassengerUpdateTrigger = functions.database
           passengerNotification.pushToken,
           "Booking Accepted",
           "Passenger Notification : " + msgPassenger
+        );
+      }
+      if (after.tripType == 4) {
+        sendSMS(
+          "+91" + after.deliveryDetails.mobile,
+          `Track your delivery on this link https://tracking.warpspeedtaxi.com/#/tripPassenger/${key}`
         );
       }
 
