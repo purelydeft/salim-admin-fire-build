@@ -24,7 +24,7 @@ const mailingDetails = {
 // warpspeedtaxi
 const liveAccountSid = "AC6005dce8d100a79770c8543411205a08";
 const liveAuthToken = "d75d71a5757f2bd94402133500557feb";
-const twilioNumber = "+19047204493";
+const twilioNumber = "+17088661422";
 
 // const liveAccountSid = "AC6c5019c7101d3b7aaf83b9dddf28a279";
 // const liveAuthToken = "0a335f758759276626a639be5d07226f";
