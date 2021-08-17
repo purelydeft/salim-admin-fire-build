@@ -4,9 +4,7 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
-const cors = require("cors")({
-  origin: true,
-});
+const _ = require("lodash");
 const https = require("https");
 var pdf = require("html-pdf");
 const ADMIN_EMAIL = "complain@gmail.com";
@@ -18,7 +16,7 @@ const mailingDetails = {
   requireTLS: true,
   auth: {
     user: "patrickphp2@gmail.com",
-    pass: "Informatics@1234",
+    pass: "Informatics@1234$#",
   },
 };
 // warpspeedtaxi
@@ -43,6 +41,13 @@ const TRIP_STATUS_WAITING = "waiting";
 const TRIP_STATUS_GOING = "going";
 const TRIP_STATUS_FINISHED = "finished";
 const TRIP_STATUS_CANCELED = "canceled";
+
+const SHOW_VEHICLES_WITHIN = 5;
+const VEHICLE_LAST_ACTIVE_LIMIT = 60000;
+const DEAL_STATUS_PENDING = "pending";
+const DEAL_STATUS_ACCEPTED = "accepted";
+const DEAL_STATUS_CANCELED = "canceled";
+const DEAL_STATUS_GOING = 'going';
 
 /**
  * Uncomment for local testing
@@ -139,6 +144,178 @@ function calcCrow(lat1, lon1, lat2, lon2) {
 function toRad(value) {
   return (value * Math.PI) / 180;
 }
+
+/*dev-----------------*/
+
+function fetchPassenger(childSnapshot) {
+  admin.database().ref('passengers').orderByKey().equalTo(childSnapshot.passengerId).on('value', snap => {
+    childSnapshot.passenger = snapshotToArray(snap)[0];
+  });
+}
+function allocateTrip(trip) {
+  const activeBooking = {
+    key: null,
+    trip: null,
+    activeDrivers: [],
+    locality: null,
+    currentDriver: null,
+    dealSub: null,
+  };
+  activeBooking.key = trip.key;
+  activeBooking.trip = trip;
+  functions.logger.info('Before geocode');
+  const mapKey = 'AIzaSyBWVzQo6XQB2CC8-WruJ56DaqJRwUVcuc0';
+  // eslint-disable-next-line max-len
+  let rData = "";
+  https.get('https://maps.googleapis.com/maps/api/geocode/json?key=' + mapKey +'&result_type=locality&latlng='+ trip.origin.lat + ',' + trip.origin.lon + '&sensor=true', (res) => {
+    res.setEncoding('utf8')
+    res.on('data', (d) => {
+      functions.logger.info('d', d);
+      rData += d;
+    });
+    res.on('end', (end) => {
+      functions.logger.info('end', rData);
+      rData = JSON.parse(rData);
+      if (rData && rData.status === 'OK') {
+        activeBooking.locality = setLocalityFromGeocoder(rData.results);
+        functions.logger.info('loc', rData,  activeBooking.locality);
+        fetchActiveDrivers(activeBooking);
+      }
+    });
+  });
+}
+function fetchActiveDrivers(activeBooking) {
+  try {
+    admin.database().ref('driver-locations').orderByChild('locality').equalTo(activeBooking.locality).off('value');
+  } catch (e) {}
+  admin.database().ref('driver-locations').orderByChild('locality').equalTo(activeBooking.locality).on('value', snap => {
+    const snapshot = [...snapshotToArray(snap)];
+    if (snapshot.length) {
+      let vehicles = [];
+      activeBooking.activeDrivers = [...[]];
+      if (activeBooking.trip.tripType === 0) {
+        vehicles = _.filter(snapshot, vehicle => (vehicle.vehicleType === activeBooking.trip.vehicleType));
+      } else if (activeBooking.trip.tripType === 2) {
+        vehicles = _.filter(snapshot, vehicle => (vehicle.vehicleType === activeBooking.trip.vehicleType && vehicle.outstation));
+      }
+      _.forEach(vehicles, (vehicle) => {
+        const distance = calcCrow(vehicle.lat, vehicle.lng, activeBooking.trip.origin.lat, activeBooking.trip.origin.lon);
+        // checking last active time and distance
+        if ((distance < SHOW_VEHICLES_WITHIN) && ((Date.now() - vehicle.last_active) < VEHICLE_LAST_ACTIVE_LIMIT)) {
+          // create or update
+          activeBooking.activeDrivers.push(vehicle);
+        }
+      });
+      if (activeBooking.activeDrivers.length > 0) {
+        if (activeBooking.activeDrivers.length > 1) {
+          activeBooking.activeDrivers = sortDriversList(activeBooking.activeDrivers);
+        }
+        makeDeal(0, activeBooking);
+      } else {
+        functions.logger.info('No driver found');
+      }
+    }
+  });
+}
+function makeDeal(index, activeBooking) {
+  functions.logger.info('make deal', index, activeBooking);
+  activeBooking.currentDriver = activeBooking.activeDrivers[index];
+  if (activeBooking.currentDriver) {
+    activeBooking.currentDriver.status = 'Bidding';
+    try {
+      admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
+    } catch (e) {}
+    // eslint-disable-next-line max-len
+    admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).on('value', snap => {
+      const tripDriver = snapshotToArray(snap, true)[0];
+      functions.logger.info('tripDriver', tripDriver);
+      if (tripDriver && (tripDriver.status === DEAL_STATUS_GOING)) {
+        admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
+        nextDriver(index, activeBooking);
+      } else {
+        activeBooking.trip.driverId = activeBooking.currentDriver.key;
+        delete activeBooking.trip.key;
+        admin.database().ref().child('trip-passengers/').push(activeBooking.trip)
+          .then((tripPassenger) => {
+            functions.logger.info('tripPassenger', tripPassenger.key);
+            admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).on('value', (snap2) => {
+              if (snapshotToArray(snap2) && snapshotToArray(snap2).length) {
+                const tripDriverData = snapshotToArray(snap2)[0];
+                functions.logger.info('tripDriverData', tripDriverData);
+                try {
+                  admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).off('value');
+                } catch (e) {
+                }
+                if (tripDriverData.status === DEAL_STATUS_ACCEPTED) {
+                  admin.database().ref().child('scheduled-trips/' + activeBooking.key).remove().then(() => {
+                    resetActiveBooking(activeBooking);
+                  });
+                } else if (tripDriverData.status === DEAL_STATUS_CANCELED) {
+                  nextDriver(index, activeBooking);
+                }
+              } else {
+                nextDriver(index, activeBooking);
+              }
+            });
+          })
+          .catch((e) => {
+            functions.logger.info('err', e);
+            nextDriver(index, activeBooking);
+          });
+      }
+    });
+  }
+}
+function snapshotToArray(snapshot, appendKey = false, fetchP = false, setIsShown = false) {
+  const returnArr = [];
+  const item = snapshot.val();
+  if (item) {
+    _.forEach(item, (childSnapshot, k) => {
+      if (appendKey) {
+        childSnapshot.key = k;
+      }
+      if (setIsShown) {
+        childSnapshot.isShown = false;
+      }
+      if (fetchP) {
+        fetchPassenger(childSnapshot);
+      }
+      returnArr.push(childSnapshot);
+    });
+  }
+  return returnArr;
+}
+function setLocalityFromGeocoder(results) {
+  let rtnData = '';
+  _.forEach(results, address => {
+    _.forEach(address.address_components, component => {
+      if (component.types[0] === 'administrative_area_level_2') {
+        rtnData = component.short_name.replace(/[\%\.\#\$\/\[\]]/, '_');
+      }
+    });
+  });
+  return rtnData;
+}
+function sortDriversList(drivers) {
+  return drivers.sort((a, b) => (a.rating - a.distance / 5 - (b.rating - b.distance / 5)));
+}
+function nextDriver(index, activeBooking) {
+  activeBooking.activeDrivers.splice(index, 1);
+  if (activeBooking.activeDrivers && activeBooking.activeDrivers.length) {
+    makeDeal(index, activeBooking);
+  }
+}
+function resetActiveBooking(activeBooking) {
+  activeBooking = {
+    key: null,
+    trip: null,
+    activeDrivers: [],
+    locality: null,
+    currentDriver: null,
+    dealSub: null,
+  };
+}
+/*dev-----------------*/
 /************************************Live DB Functions*************************************************/
 
 exports.sendPush = functions.database
@@ -373,11 +550,11 @@ exports.deleteDriver = functions.database
       .auth()
       .deleteUser(id)
       .then(() => {
-        console.log("Deleted: " + id);
+        functions.logger.info("Deleted: " + id);
         return false;
       })
       .catch((err) => {
-        console.log(err);
+        functions.logger.info(err);
         return false;
       });
   });
@@ -390,11 +567,11 @@ exports.deleteAdmin = functions.database
       .auth()
       .deleteUser(id)
       .then(() => {
-        console.log("Deleted: " + id);
+        functions.logger.info("Deleted: " + id);
         return false;
       })
       .catch((err) => {
-        console.log(err);
+        functions.logger.info(err);
         return false;
       });
   });
@@ -420,7 +597,7 @@ exports.createAdmin = functions.database
           return false;
         })
         .catch((err) => {
-          console.log(err);
+          functions.logger.info(err);
           return false;
         });
     }
@@ -551,7 +728,7 @@ exports.createDriver = functions.database
             .remove();
         })
         .catch((err) => {
-          console.log(err);
+          functions.logger.info(err);
         });
     } else if (
       original.createdBy == "self" &&
@@ -567,7 +744,7 @@ exports.createDriver = functions.database
           })
           .then(() => {})
           .catch((err) => {
-            console.log(err);
+            functions.logger.info(err);
           });
       }
     }
@@ -931,10 +1108,10 @@ async function generateEarningStatements(driverId, driver) {
    * Statement Email Data
    */
 
-  // Header
+    // Header
   let commonHeaderTemplate = (
-    await admin.database().ref("email-templates/header").once("value")
-  ).val();
+      await admin.database().ref("email-templates/header").once("value")
+    ).val();
   commonHeaderTemplate.template = commonHeaderTemplate.template.replace(
     new RegExp("{date}", "g"),
     moment().format("Do MMMM YYYY")
@@ -974,10 +1151,10 @@ async function generateEarningStatements(driverId, driver) {
    * Statement PDF Data
    */
 
-  // Body
+    // Body
   let emailStatementPdf = (
-    await admin.database().ref("email-templates/statement").once("value")
-  ).val();
+      await admin.database().ref("email-templates/statement").once("value")
+    ).val();
   emailStatementPdf.template = emailStatementPdf.template.replace(
     new RegExp("{name}", "g"),
     driver.name
@@ -1003,7 +1180,7 @@ async function generateEarningStatements(driverId, driver) {
    * Render Data
    */
 
-  // Statement Email Render Data
+    // Statement Email Render Data
   let emailStatementHeader = ejs.render(commonHeaderTemplate.template);
   let emailStatementBody = ejs.render(emailStatement.template);
   let emailStatementFooter = ejs.render(commonFooterTemplate.template);
@@ -1248,7 +1425,7 @@ exports.createPassenger = functions.database
             .remove();
         })
         .catch((err) => {
-          console.log(err);
+          functions.logger.info(err);
         });
     } else if (
       original.createdBy == "self" &&
@@ -1264,7 +1441,7 @@ exports.createPassenger = functions.database
           })
           .then(() => {})
           .catch((err) => {
-            console.log(err);
+            functions.logger.info(err);
           });
       }
     }
@@ -1865,10 +2042,9 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           new RegExp("{fromTime}", "g"),
           moment(new Date(tripData.pickedUpAt)).format("hh:mm A")
         );
-
         emailBody.template = emailBody.template.replace(
           new RegExp("{fromAddress}", "g"),
-          tripData.origin.address
+          ((tripData && tripData.origin && tripData.origin.address) ? tripData.origin.address : '-')
         );
 
         emailBody.template = emailBody.template.replace(
@@ -1878,7 +2054,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{toAddress}", "g"),
-          tripData.destination.address
+          ( (tripData && tripData.destination && tripData.destination.address) ? tripData.destination.address : '-')
         );
 
         emailBody.template = emailBody.template.replace(
@@ -1958,7 +2134,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
                   functions.logger.error(err1);
                   return res.status(200).json({
                     status: -1,
-                    msg: "Error occured while sending mail.",
+                    msg: "Error occurred while sending mail.",
                   });
                 } else {
                   functions.logger.info(info);
@@ -2029,7 +2205,7 @@ exports.scheduledFunction = functions.pubsub
       });
   });
 
-exports.driverAssignmentCron = functions.pubsub
+/*exports.driverAssignmentCron = functions.pubsub
   .schedule("every 2 minutes")
   .onRun(() => {
     functions.logger.log(
@@ -2042,9 +2218,9 @@ exports.driverAssignmentCron = functions.pubsub
     };
 
     const req = https.request(options, (res) => {
-      console.log(`statusCode: ${res.statusCode}`);
+      functions.logger.info(`statusCode: ${res.statusCode}`);
     });
-  });
+  });*/
 
 exports.walletWithdrawalDailyScheduler = functions.pubsub
   .schedule("0 16 * * *")
@@ -3339,7 +3515,7 @@ exports.tripPassengerUpdateTrigger = functions.database
               }
             });
             var rating = stars / count;
-            console.log("Rating:" + rating);
+            functions.logger.info("Rating:" + rating);
 
             if (!isNaN(rating)) {
               admin
@@ -4384,6 +4560,27 @@ exports.driverBookingLogUpdateTrigger = functions.database
         }
       });
   });
+
+exports.driverAssignmentCron = functions.pubsub
+  .schedule("every 2 minutes")
+  .onRun(() => {
+    admin.database()
+      .ref("scheduled-trips")
+      .once("value")
+      .then((snapshot) => {
+        const tmp = snapshotToArray(snapshot, true, true, true).reverse();
+        functions.logger.info('temp', tmp);
+        tmp.forEach((trip) => {
+          const scheduleDate = moment(new Date(trip.departDate));
+          const date = moment();
+          // eslint-disable-next-line max-len
+          if (date.isBefore(scheduleDate) && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() < 60 && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() > 10) {
+            allocateTrip(trip);
+          }
+        });
+      });
+  });
+
 
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
