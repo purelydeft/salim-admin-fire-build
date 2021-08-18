@@ -170,7 +170,6 @@ function allocateTrip(trip) {
   https.get('https://maps.googleapis.com/maps/api/geocode/json?key=' + mapKey +'&result_type=locality&latlng='+ trip.origin.lat + ',' + trip.origin.lon + '&sensor=true', (res) => {
     res.setEncoding('utf8')
     res.on('data', (d) => {
-      functions.logger.info('d', d);
       rData += d;
     });
     res.on('end', (end) => {
@@ -178,7 +177,6 @@ function allocateTrip(trip) {
       rData = JSON.parse(rData);
       if (rData && rData.status === 'OK') {
         activeBooking.locality = setLocalityFromGeocoder(rData.results);
-        functions.logger.info('loc', rData,  activeBooking.locality);
         fetchActiveDrivers(activeBooking);
       }
     });
@@ -192,7 +190,7 @@ function fetchActiveDrivers(activeBooking) {
     const snapshot = [...snapshotToArray(snap)];
     if (snapshot.length) {
       let vehicles = [];
-      activeBooking.activeDrivers = [...[]];
+      // activeBooking.activeDrivers = [...[]];
       if (activeBooking.trip.tripType === 0) {
         vehicles = _.filter(snapshot, vehicle => (vehicle.vehicleType === activeBooking.trip.vehicleType));
       } else if (activeBooking.trip.tripType === 2) {
@@ -220,51 +218,59 @@ function fetchActiveDrivers(activeBooking) {
 function makeDeal(index, activeBooking) {
   functions.logger.info('make deal', index, activeBooking);
   activeBooking.currentDriver = activeBooking.activeDrivers[index];
-  if (activeBooking.currentDriver) {
-    activeBooking.currentDriver.status = 'Bidding';
-    try {
-      admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
-    } catch (e) {}
-    // eslint-disable-next-line max-len
-    admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).on('value', snap => {
-      const tripDriver = snapshotToArray(snap, true)[0];
-      functions.logger.info('tripDriver', tripDriver);
-      if (tripDriver && (tripDriver.status === DEAL_STATUS_GOING)) {
+  admin.database().ref('scheduled-trips').orderByKey().equalTo(activeBooking.trip.key).once('value').then(scheduledTrip => {
+    const tmp = snapshotToArray(scheduledTrip, true)[0];
+    if (activeBooking.currentDriver && !_.includes(activeBooking.currentDriver.key, tmp.driversReject)) {
+      activeBooking.currentDriver.status = 'Bidding';
+      try {
         admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
-        nextDriver(index, activeBooking);
-      } else {
-        activeBooking.trip.driverId = activeBooking.currentDriver.key;
-        delete activeBooking.trip.key;
-        admin.database().ref().child('trip-passengers/').push(activeBooking.trip)
-          .then((tripPassenger) => {
-            functions.logger.info('tripPassenger', tripPassenger.key);
-            admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).on('value', (snap2) => {
-              if (snapshotToArray(snap2) && snapshotToArray(snap2).length) {
-                const tripDriverData = snapshotToArray(snap2)[0];
-                functions.logger.info('tripDriverData', tripDriverData);
-                try {
-                  admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).off('value');
-                } catch (e) {
-                }
-                if (tripDriverData.status === DEAL_STATUS_ACCEPTED) {
-                  admin.database().ref().child('scheduled-trips/' + activeBooking.key).remove().then(() => {
-                    resetActiveBooking(activeBooking);
-                  });
-                } else if (tripDriverData.status === DEAL_STATUS_CANCELED) {
+      } catch (e) {}
+      // eslint-disable-next-line max-len
+      admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).on('value', snap => {
+        const tripDriver = snapshotToArray(snap, true)[0];
+        functions.logger.info('tripDriver', tripDriver);
+        if (tripDriver && (tripDriver.status === DEAL_STATUS_GOING)) {
+          admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
+          nextDriver(index, activeBooking);
+        } else {
+          activeBooking.trip.driverId = activeBooking.currentDriver.key;
+          activeBooking.trip.scheduledTripKey = activeBooking.trip.key;
+          delete activeBooking.trip.key;
+          admin.database().ref().child('trip-passengers/').push(activeBooking.trip)
+            .then((tripPassenger) => {
+              functions.logger.info('tripPassenger', tripPassenger.key);
+              admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).on('value', (snap2) => {
+                if (snapshotToArray(snap2) && snapshotToArray(snap2).length) {
+                  const tripDriverData = snapshotToArray(snap2)[0];
+                  functions.logger.info('tripDriverData', tripDriverData);
+                  if (tripDriverData.status !== DEAL_STATUS_PENDING) {
+                    try {
+                      admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).off('value');
+                    } catch (e) {}
+                  }
+                  if (tripDriverData.status === DEAL_STATUS_ACCEPTED) {
+                    admin.database().ref().child('scheduled-trips/' + activeBooking.key).remove().then(() => {
+                      resetActiveBooking(activeBooking);
+                    });
+                  }
+                } else {
+                  try {
+                    admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).off('value');
+                  } catch (e) {}
                   nextDriver(index, activeBooking);
                 }
-              } else {
-                nextDriver(index, activeBooking);
-              }
+              });
+            })
+            .catch((e) => {
+              functions.logger.info('err', e);
+              nextDriver(index, activeBooking);
             });
-          })
-          .catch((e) => {
-            functions.logger.info('err', e);
-            nextDriver(index, activeBooking);
-          });
-      }
-    });
-  }
+        }
+      });
+    } else {
+      functions.logger.info('Driver not found or Driver rejected for ride');
+    }
+  }).catch(() => {});
 }
 function snapshotToArray(snapshot, appendKey = false, fetchP = false, setIsShown = false) {
   const returnArr = [];
@@ -4569,7 +4575,7 @@ exports.driverAssignmentCron = functions.pubsub
       .once("value")
       .then((snapshot) => {
         const tmp = snapshotToArray(snapshot, true, true, true).reverse();
-        functions.logger.info('temp', tmp);
+        functions.logger.info('scheduled-trips', tmp);
         tmp.forEach((trip) => {
           const scheduleDate = moment(new Date(trip.departDate));
           const date = moment();
