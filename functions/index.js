@@ -1637,19 +1637,23 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             .ref("passenger-emergency/" + id)
             .once("value")
         ).val();
-
-        for (const [key, value] of Object.entries(passengerEmergency)) {
-          if (value.mobile) {
-            const msg1 =
-              "Hello " +
-              value.name +
-              ", Testing SOS Message For Passenger " +
-              passenger.name +
-              " With TripId : " +
-              tripId;
-            sendSMS("+91" + value.mobile, msg1);
+        if (passengerEmergency && Object.entries(passengerEmergency)) {
+          for (const [key, value] of Object.entries(passengerEmergency)) {
+            if (value.mobile) {
+              const msg1 =
+                "Hello " +
+                value.name +
+                ", Testing SOS Message For Passenger " +
+                passenger.name +
+                " With TripId : " +
+                tripId;
+              sendSMS("+91" + value.mobile, msg1);
+            }
           }
+        } else {
+          functions.logger.error('Passenger Emergency contact not found.')
         }
+
       } else {
         const driver = (
           await admin
