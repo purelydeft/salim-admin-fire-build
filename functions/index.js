@@ -4,6 +4,7 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
+const fs = require('fs');
 const _ = require("lodash");
 const https = require("https");
 var pdf = require("html-pdf");
@@ -101,7 +102,8 @@ function sendSMS(to, mesage) {
     client.messages
       .create({
         body: mesage,
-        from: twilioNumber,
+        // from: twilioNumber,
+        messagingServiceSid: 'MG7311a5f5fcced847bafea5a5b7651962',
         to: to,
       })
       .then((message) => {
@@ -992,10 +994,7 @@ exports.updateDriver = functions.database
   });
 
 async function generateEarningStatements(driverId, driver) {
-  admin
-    .database()
-    .ref("drivers/" + driverId)
-    .update({ triggerStatementGeneration: false });
+  admin.database().ref("drivers/" + driverId).update({ triggerStatementGeneration: false });
   let companyData = (
     await admin.database().ref("company-details").once("value")
   ).val();
@@ -1258,42 +1257,42 @@ function renderPdfHtml(driver, statementPdfData, fileName, emailHtml) {
           msg: "Unable To Send Statement Via Mail.",
         });
       } else {
-        pdf
-          .create(html, {
-            timeout: "200000",
-            format: "A4",
-            header: {
-              height: "15mm",
-            },
-            footer: {
-              height: "15mm",
-            },
-          })
-          .toBuffer(function (error, buffer) {
-            if (error) {
-              functions.logger.log("error:", error);
-            } else {
-              attachments.push({
-                filename: fileName,
-                content: buffer,
-                contentType: "application/pdf",
-              });
-              let callBack = function (err1, info) {
-                if (err1) {
-                  functions.logger.error(err1);
-                  return res.status(200).json({
-                    status: -1,
-                    msg: "Error occured while sending mail.",
-                  });
-                } else {
-                  functions.logger.info(info);
-                  return res.status(200).json({
-                    status: 1,
-                    msg: "Mail sent successfully.",
-                  });
-                }
-              };
-              sendEmail(
+        functions.logger.info('driverHtmlSuccess~~~~');
+        pdf.create(html, {
+          timeout: 250000,
+          format: "A4",
+          header: {
+            height: "15mm",
+          },
+          footer: {
+            height: "15mm",
+          }
+        }).toBuffer(async function(error, buffer){
+          functions.logger.info('toBuffer~~~~', buffer);
+          if (error) {
+            functions.logger.log("error:", error);
+          } else {
+            attachments.push({
+              filename: fileName + '.pdf',
+              content: buffer,
+              contentType: "application/pdf",
+            });
+            let callBack = function (err1, info) {
+              if (err1) {
+                functions.logger.error('Error occurred while sending mail', err1);
+                return res.status(200).json({
+                  status: -1,
+                  msg: "Error occurred while sending mail.",
+                });
+              } else {
+                functions.logger.info(info);
+                return res.status(200).json({
+                  status: 1,
+                  msg: "Mail sent successfully.",
+                });
+              }
+            };
+            await sendEmail(
                 {
                   to: driver.email,
                   bcc: null,
@@ -1302,9 +1301,9 @@ function renderPdfHtml(driver, statementPdfData, fileName, emailHtml) {
                   attachments,
                 },
                 callBack
-              );
-            }
-          });
+            );
+          }
+        });
       }
     }
   );
@@ -2186,33 +2185,33 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
 exports.scheduledFunction = functions.pubsub
   .schedule("every 2 minutes")
-  .onRun((context) => {
+  .onRun( (context) => {
     const date = moment();
     admin
-      .database()
-      .ref("scheduled-trips")
-      .once("value", function (snapshot) {
-        const schedules = snapshot.val();
-        for (const [tripKey, tripData] of Object.entries(schedules)) {
-          const scheduleDate = moment(new Date(tripData.departDate));
-          if (date.isAfter(scheduleDate)) {
-            admin
-              .database()
-              .ref("trip-passengers/")
-              .push({
-                ...tripData,
-                status: "canceled",
-                cancellationReasonText: "No drivers were found for your ride",
-              })
-              .then(() => {
-                admin
+        .database()
+        .ref("scheduled-trips")
+        .once("value", function (snapshot) {
+          const schedules = snapshot.val();
+          for (const [tripKey, tripData] of Object.entries(schedules)) {
+            const scheduleDate = moment(new Date(tripData.departDate));
+            if (date.isAfter(scheduleDate)) {
+              admin
                   .database()
-                  .ref("scheduled-trips/" + tripKey)
-                  .remove();
-              });
+                  .ref("trip-passengers/")
+                  .push({
+                    ...tripData,
+                    status: "canceled",
+                    cancellationReasonText: "No drivers were found for your ride",
+                  })
+                  .then(async () => {
+                    await admin
+                        .database()
+                        .ref("scheduled-trips/" + tripKey)
+                        .remove();
+                  });
+            }
           }
-        }
-      });
+        });
   });
 
 /*exports.driverAssignmentCron = functions.pubsub
