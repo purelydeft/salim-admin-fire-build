@@ -2183,7 +2183,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
   }
 });
 
-exports.scheduledFunction = functions.pubsub
+/*exports.scheduledFunction = functions.pubsub
   .schedule("every 2 minutes")
   .onRun( (context) => {
     const date = moment();
@@ -2212,7 +2212,7 @@ exports.scheduledFunction = functions.pubsub
             }
           }
         });
-  });
+  });*/
 
 /*exports.driverAssignmentCron = functions.pubsub
   .schedule("every 2 minutes")
@@ -4582,8 +4582,15 @@ exports.driverAssignmentCron = functions.pubsub
         tmp.forEach((trip) => {
           const scheduleDate = moment(new Date(trip.departDate));
           const date = moment();
-          // eslint-disable-next-line max-len
-          if (date.isBefore(scheduleDate) && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() < 60 && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() > 10) {
+          if (date.isAfter(scheduleDate)) {
+            admin.database().ref("trip-passengers/").push({
+              ...trip,
+              status: "canceled",
+              cancellationReasonText: "No drivers were found for your ride",
+            }).then(async () => {
+              await admin.database().ref("scheduled-trips/" + trip.key).remove();
+            });
+          } else if (date.isBefore(scheduleDate) && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() < 30 && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() > 1) {
             allocateTrip(trip);
           }
         });
