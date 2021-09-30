@@ -4590,7 +4590,7 @@ exports.driverAssignmentCron = functions.pubsub
             }).then(async () => {
               await admin.database().ref("scheduled-trips/" + trip.key).remove();
             });
-          } else if (date.isBefore(scheduleDate) && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() < 30 && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() > 1) {
+          } else if (date.isBefore(scheduleDate) && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() < 10 && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() > 1) {
             allocateTrip(trip);
           }
         });
