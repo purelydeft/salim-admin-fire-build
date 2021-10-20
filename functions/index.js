@@ -4,7 +4,7 @@ const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Kolkata");
 const nodemailer = require("nodemailer");
 const ejs = require("ejs");
-const fs = require('fs');
+const fs = require("fs");
 const _ = require("lodash");
 const https = require("https");
 var pdf = require("html-pdf");
@@ -48,7 +48,7 @@ const VEHICLE_LAST_ACTIVE_LIMIT = 60000;
 const DEAL_STATUS_PENDING = "pending";
 const DEAL_STATUS_ACCEPTED = "accepted";
 const DEAL_STATUS_CANCELED = "canceled";
-const DEAL_STATUS_GOING = 'going';
+const DEAL_STATUS_GOING = "going";
 
 /**
  * Uncomment for local testing
@@ -103,7 +103,7 @@ function sendSMS(to, mesage) {
       .create({
         body: mesage,
         // from: twilioNumber,
-        messagingServiceSid: 'MG7311a5f5fcced847bafea5a5b7651962',
+        messagingServiceSid: "MG7311a5f5fcced847bafea5a5b7651962",
         to: to,
       })
       .then((message) => {
@@ -150,9 +150,14 @@ function toRad(value) {
 /*dev-----------------*/
 
 function fetchPassenger(childSnapshot) {
-  admin.database().ref('passengers').orderByKey().equalTo(childSnapshot.passengerId).on('value', snap => {
-    childSnapshot.passenger = snapshotToArray(snap)[0];
-  });
+  admin
+    .database()
+    .ref("passengers")
+    .orderByKey()
+    .equalTo(childSnapshot.passengerId)
+    .on("value", (snap) => {
+      childSnapshot.passenger = snapshotToArray(snap)[0];
+    });
 }
 function allocateTrip(trip) {
   const activeBooking = {
@@ -165,116 +170,213 @@ function allocateTrip(trip) {
   };
   activeBooking.key = trip.key;
   activeBooking.trip = trip;
-  functions.logger.info('Before geocode');
-  const mapKey = 'AIzaSyBWVzQo6XQB2CC8-WruJ56DaqJRwUVcuc0';
+  functions.logger.info("Before geocode");
+  const mapKey = "AIzaSyBWVzQo6XQB2CC8-WruJ56DaqJRwUVcuc0";
   // eslint-disable-next-line max-len
   let rData = "";
-  https.get('https://maps.googleapis.com/maps/api/geocode/json?key=' + mapKey +'&result_type=locality&latlng='+ trip.origin.lat + ',' + trip.origin.lon + '&sensor=true', (res) => {
-    res.setEncoding('utf8')
-    res.on('data', (d) => {
-      rData += d;
-    });
-    res.on('end', (end) => {
-      functions.logger.info('end', rData);
-      rData = JSON.parse(rData);
-      if (rData && rData.status === 'OK') {
-        activeBooking.locality = setLocalityFromGeocoder(rData.results);
-        fetchActiveDrivers(activeBooking);
-      }
-    });
-  });
+  https.get(
+    "https://maps.googleapis.com/maps/api/geocode/json?key=" +
+      mapKey +
+      "&result_type=locality&latlng=" +
+      trip.origin.lat +
+      "," +
+      trip.origin.lon +
+      "&sensor=true",
+    (res) => {
+      res.setEncoding("utf8");
+      res.on("data", (d) => {
+        rData += d;
+      });
+      res.on("end", (end) => {
+        functions.logger.info("end", rData);
+        rData = JSON.parse(rData);
+        if (rData && rData.status === "OK") {
+          activeBooking.locality = setLocalityFromGeocoder(rData.results);
+          fetchActiveDrivers(activeBooking);
+        }
+      });
+    }
+  );
 }
 function fetchActiveDrivers(activeBooking) {
   try {
-    admin.database().ref('driver-locations').orderByChild('locality').equalTo(activeBooking.locality).off('value');
+    admin
+      .database()
+      .ref("driver-locations")
+      .orderByChild("locality")
+      .equalTo(activeBooking.locality)
+      .off("value");
   } catch (e) {}
-  admin.database().ref('driver-locations').orderByChild('locality').equalTo(activeBooking.locality).on('value', snap => {
-    const snapshot = [...snapshotToArray(snap)];
-    if (snapshot.length) {
-      let vehicles = [];
-      // activeBooking.activeDrivers = [...[]];
-      if (activeBooking.trip.tripType === 0) {
-        vehicles = _.filter(snapshot, vehicle => (vehicle.vehicleType === activeBooking.trip.vehicleType));
-      } else if (activeBooking.trip.tripType === 2) {
-        vehicles = _.filter(snapshot, vehicle => (vehicle.vehicleType === activeBooking.trip.vehicleType && vehicle.outstation));
-      }
-      _.forEach(vehicles, (vehicle) => {
-        const distance = calcCrow(vehicle.lat, vehicle.lng, activeBooking.trip.origin.lat, activeBooking.trip.origin.lon);
-        // checking last active time and distance
-        if ((distance < SHOW_VEHICLES_WITHIN) && ((Date.now() - vehicle.last_active) < VEHICLE_LAST_ACTIVE_LIMIT)) {
-          // create or update
-          activeBooking.activeDrivers.push(vehicle);
+  admin
+    .database()
+    .ref("driver-locations")
+    .orderByChild("locality")
+    .equalTo(activeBooking.locality)
+    .on("value", (snap) => {
+      const snapshot = [...snapshotToArray(snap)];
+      if (snapshot.length) {
+        let vehicles = [];
+        // activeBooking.activeDrivers = [...[]];
+        if (activeBooking.trip.tripType === 0) {
+          vehicles = _.filter(
+            snapshot,
+            (vehicle) => vehicle.vehicleType === activeBooking.trip.vehicleType
+          );
+        } else if (activeBooking.trip.tripType === 2) {
+          vehicles = _.filter(
+            snapshot,
+            (vehicle) =>
+              vehicle.vehicleType === activeBooking.trip.vehicleType &&
+              vehicle.outstation
+          );
         }
-      });
-      if (activeBooking.activeDrivers.length > 0) {
-        if (activeBooking.activeDrivers.length > 1) {
-          activeBooking.activeDrivers = sortDriversList(activeBooking.activeDrivers);
+        _.forEach(vehicles, (vehicle) => {
+          const distance = calcCrow(
+            vehicle.lat,
+            vehicle.lng,
+            activeBooking.trip.origin.lat,
+            activeBooking.trip.origin.lon
+          );
+          // checking last active time and distance
+          if (
+            distance < SHOW_VEHICLES_WITHIN &&
+            Date.now() - vehicle.last_active < VEHICLE_LAST_ACTIVE_LIMIT
+          ) {
+            // create or update
+            activeBooking.activeDrivers.push(vehicle);
+          }
+        });
+        if (activeBooking.activeDrivers.length > 0) {
+          if (activeBooking.activeDrivers.length > 1) {
+            activeBooking.activeDrivers = sortDriversList(
+              activeBooking.activeDrivers
+            );
+          }
+          makeDeal(0, activeBooking);
+        } else {
+          functions.logger.info("No driver found");
         }
-        makeDeal(0, activeBooking);
-      } else {
-        functions.logger.info('No driver found');
       }
-    }
-  });
+    });
 }
 function makeDeal(index, activeBooking) {
-  functions.logger.info('make deal', index, activeBooking);
+  functions.logger.info("make deal", index, activeBooking);
   activeBooking.currentDriver = activeBooking.activeDrivers[index];
-  admin.database().ref('scheduled-trips').orderByKey().equalTo(activeBooking.trip.key).once('value').then(scheduledTrip => {
-    const tmp = snapshotToArray(scheduledTrip, true)[0];
-    if (activeBooking.currentDriver && !_.includes(activeBooking.currentDriver.key, tmp.driversReject)) {
-      activeBooking.currentDriver.status = 'Bidding';
-      try {
-        admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
-      } catch (e) {}
-      // eslint-disable-next-line max-len
-      admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).on('value', snap => {
-        const tripDriver = snapshotToArray(snap, true)[0];
-        functions.logger.info('tripDriver', tripDriver);
-        if (tripDriver && (tripDriver.status === DEAL_STATUS_GOING)) {
-          admin.database().ref('trips').orderByChild('driverId').equalTo(activeBooking.currentDriver.key).limitToLast(1).off('value');
-          nextDriver(index, activeBooking);
-        } else {
-          activeBooking.trip.driverId = activeBooking.currentDriver.key;
-          activeBooking.trip.scheduledTripKey = activeBooking.trip.key;
-          delete activeBooking.trip.key;
-          admin.database().ref().child('trip-passengers/').push(activeBooking.trip)
-            .then((tripPassenger) => {
-              functions.logger.info('tripPassenger', tripPassenger.key);
-              admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).on('value', (snap2) => {
-                if (snapshotToArray(snap2) && snapshotToArray(snap2).length) {
-                  const tripDriverData = snapshotToArray(snap2)[0];
-                  functions.logger.info('tripDriverData', tripDriverData);
-                  if (tripDriverData.status !== DEAL_STATUS_PENDING) {
-                    try {
-                      admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).off('value');
-                    } catch (e) {}
-                  }
-                  if (tripDriverData.status === DEAL_STATUS_ACCEPTED) {
-                    admin.database().ref().child('scheduled-trips/' + activeBooking.key).remove().then(() => {
-                      resetActiveBooking(activeBooking);
-                    });
-                  }
-                } else {
-                  try {
-                    admin.database().ref('trip-passengers').orderByKey().equalTo(tripPassenger.key).off('value');
-                  } catch (e) {}
-                  nextDriver(index, activeBooking);
-                }
-              });
-            })
-            .catch((e) => {
-              functions.logger.info('err', e);
+  admin
+    .database()
+    .ref("scheduled-trips")
+    .orderByKey()
+    .equalTo(activeBooking.trip.key)
+    .once("value")
+    .then((scheduledTrip) => {
+      const tmp = snapshotToArray(scheduledTrip, true)[0];
+      if (
+        activeBooking.currentDriver &&
+        !_.includes(activeBooking.currentDriver.key, tmp.driversReject)
+      ) {
+        activeBooking.currentDriver.status = "Bidding";
+        try {
+          admin
+            .database()
+            .ref("trips")
+            .orderByChild("driverId")
+            .equalTo(activeBooking.currentDriver.key)
+            .limitToLast(1)
+            .off("value");
+        } catch (e) {}
+        // eslint-disable-next-line max-len
+        admin
+          .database()
+          .ref("trips")
+          .orderByChild("driverId")
+          .equalTo(activeBooking.currentDriver.key)
+          .limitToLast(1)
+          .on("value", (snap) => {
+            const tripDriver = snapshotToArray(snap, true)[0];
+            functions.logger.info("tripDriver", tripDriver);
+            if (tripDriver && tripDriver.status === DEAL_STATUS_GOING) {
+              admin
+                .database()
+                .ref("trips")
+                .orderByChild("driverId")
+                .equalTo(activeBooking.currentDriver.key)
+                .limitToLast(1)
+                .off("value");
               nextDriver(index, activeBooking);
-            });
-        }
-      });
-    } else {
-      functions.logger.info('Driver not found or Driver rejected for ride');
-    }
-  }).catch(() => {});
+            } else {
+              activeBooking.trip.driverId = activeBooking.currentDriver.key;
+              activeBooking.trip.scheduledTripKey = activeBooking.trip.key;
+              delete activeBooking.trip.key;
+              admin
+                .database()
+                .ref()
+                .child("trip-passengers/")
+                .push(activeBooking.trip)
+                .then((tripPassenger) => {
+                  functions.logger.info("tripPassenger", tripPassenger.key);
+                  admin
+                    .database()
+                    .ref("trip-passengers")
+                    .orderByKey()
+                    .equalTo(tripPassenger.key)
+                    .on("value", (snap2) => {
+                      if (
+                        snapshotToArray(snap2) &&
+                        snapshotToArray(snap2).length
+                      ) {
+                        const tripDriverData = snapshotToArray(snap2)[0];
+                        functions.logger.info("tripDriverData", tripDriverData);
+                        if (tripDriverData.status !== DEAL_STATUS_PENDING) {
+                          try {
+                            admin
+                              .database()
+                              .ref("trip-passengers")
+                              .orderByKey()
+                              .equalTo(tripPassenger.key)
+                              .off("value");
+                          } catch (e) {}
+                        }
+                        if (tripDriverData.status === DEAL_STATUS_ACCEPTED) {
+                          admin
+                            .database()
+                            .ref()
+                            .child("scheduled-trips/" + activeBooking.key)
+                            .remove()
+                            .then(() => {
+                              resetActiveBooking(activeBooking);
+                            });
+                        }
+                      } else {
+                        try {
+                          admin
+                            .database()
+                            .ref("trip-passengers")
+                            .orderByKey()
+                            .equalTo(tripPassenger.key)
+                            .off("value");
+                        } catch (e) {}
+                        nextDriver(index, activeBooking);
+                      }
+                    });
+                })
+                .catch((e) => {
+                  functions.logger.info("err", e);
+                  nextDriver(index, activeBooking);
+                });
+            }
+          });
+      } else {
+        functions.logger.info("Driver not found or Driver rejected for ride");
+      }
+    })
+    .catch(() => {});
 }
-function snapshotToArray(snapshot, appendKey = false, fetchP = false, setIsShown = false) {
+function snapshotToArray(
+  snapshot,
+  appendKey = false,
+  fetchP = false,
+  setIsShown = false
+) {
   const returnArr = [];
   const item = snapshot.val();
   if (item) {
@@ -294,18 +396,20 @@ function snapshotToArray(snapshot, appendKey = false, fetchP = false, setIsShown
   return returnArr;
 }
 function setLocalityFromGeocoder(results) {
-  let rtnData = '';
-  _.forEach(results, address => {
-    _.forEach(address.address_components, component => {
-      if (component.types[0] === 'administrative_area_level_2') {
-        rtnData = component.short_name.replace(/[\%\.\#\$\/\[\]]/, '_');
+  let rtnData = "";
+  _.forEach(results, (address) => {
+    _.forEach(address.address_components, (component) => {
+      if (component.types[0] === "administrative_area_level_2") {
+        rtnData = component.short_name.replace(/[\%\.\#\$\/\[\]]/, "_");
       }
     });
   });
   return rtnData;
 }
 function sortDriversList(drivers) {
-  return drivers.sort((a, b) => (a.rating - a.distance / 5 - (b.rating - b.distance / 5)));
+  return drivers.sort(
+    (a, b) => a.rating - a.distance / 5 - (b.rating - b.distance / 5)
+  );
 }
 function nextDriver(index, activeBooking) {
   activeBooking.activeDrivers.splice(index, 1);
@@ -994,7 +1098,10 @@ exports.updateDriver = functions.database
   });
 
 async function generateEarningStatements(driverId, driver) {
-  admin.database().ref("drivers/" + driverId).update({ triggerStatementGeneration: false });
+  admin
+    .database()
+    .ref("drivers/" + driverId)
+    .update({ triggerStatementGeneration: false });
   let companyData = (
     await admin.database().ref("company-details").once("value")
   ).val();
@@ -1113,10 +1220,10 @@ async function generateEarningStatements(driverId, driver) {
    * Statement Email Data
    */
 
-    // Header
+  // Header
   let commonHeaderTemplate = (
-      await admin.database().ref("email-templates/header").once("value")
-    ).val();
+    await admin.database().ref("email-templates/header").once("value")
+  ).val();
   commonHeaderTemplate.template = commonHeaderTemplate.template.replace(
     new RegExp("{date}", "g"),
     moment().format("Do MMMM YYYY")
@@ -1156,10 +1263,10 @@ async function generateEarningStatements(driverId, driver) {
    * Statement PDF Data
    */
 
-    // Body
+  // Body
   let emailStatementPdf = (
-      await admin.database().ref("email-templates/statement").once("value")
-    ).val();
+    await admin.database().ref("email-templates/statement").once("value")
+  ).val();
   emailStatementPdf.template = emailStatementPdf.template.replace(
     new RegExp("{name}", "g"),
     driver.name
@@ -1185,7 +1292,7 @@ async function generateEarningStatements(driverId, driver) {
    * Render Data
    */
 
-    // Statement Email Render Data
+  // Statement Email Render Data
   let emailStatementHeader = ejs.render(commonHeaderTemplate.template);
   let emailStatementBody = ejs.render(emailStatement.template);
   let emailStatementFooter = ejs.render(commonFooterTemplate.template);
@@ -1257,42 +1364,47 @@ function renderPdfHtml(driver, statementPdfData, fileName, emailHtml) {
           msg: "Unable To Send Statement Via Mail.",
         });
       } else {
-        functions.logger.info('driverHtmlSuccess~~~~');
-        pdf.create(html, {
-          timeout: 250000,
-          format: "A4",
-          header: {
-            height: "15mm",
-          },
-          footer: {
-            height: "15mm",
-          }
-        }).toBuffer(async function(error, buffer){
-          functions.logger.info('toBuffer~~~~', buffer);
-          if (error) {
-            functions.logger.log("error:", error);
-          } else {
-            attachments.push({
-              filename: fileName + '.pdf',
-              content: buffer,
-              contentType: "application/pdf",
-            });
-            let callBack = function (err1, info) {
-              if (err1) {
-                functions.logger.error('Error occurred while sending mail', err1);
-                return res.status(200).json({
-                  status: -1,
-                  msg: "Error occurred while sending mail.",
-                });
-              } else {
-                functions.logger.info(info);
-                return res.status(200).json({
-                  status: 1,
-                  msg: "Mail sent successfully.",
-                });
-              }
-            };
-            await sendEmail(
+        functions.logger.info("driverHtmlSuccess~~~~");
+        pdf
+          .create(html, {
+            timeout: 250000,
+            format: "A4",
+            header: {
+              height: "15mm",
+            },
+            footer: {
+              height: "15mm",
+            },
+          })
+          .toBuffer(async function (error, buffer) {
+            functions.logger.info("toBuffer~~~~", buffer);
+            if (error) {
+              functions.logger.log("error:", error);
+            } else {
+              attachments.push({
+                filename: fileName + ".pdf",
+                content: buffer,
+                contentType: "application/pdf",
+              });
+              let callBack = function (err1, info) {
+                if (err1) {
+                  functions.logger.error(
+                    "Error occurred while sending mail",
+                    err1
+                  );
+                  return res.status(200).json({
+                    status: -1,
+                    msg: "Error occurred while sending mail.",
+                  });
+                } else {
+                  functions.logger.info(info);
+                  return res.status(200).json({
+                    status: 1,
+                    msg: "Mail sent successfully.",
+                  });
+                }
+              };
+              await sendEmail(
                 {
                   to: driver.email,
                   bcc: null,
@@ -1301,9 +1413,9 @@ function renderPdfHtml(driver, statementPdfData, fileName, emailHtml) {
                   attachments,
                 },
                 callBack
-            );
-          }
-        });
+              );
+            }
+          });
       }
     }
   );
@@ -1650,9 +1762,8 @@ exports.sendSOSMessage = functions.https.onRequest(async (req, res) => {
             }
           }
         } else {
-          functions.logger.error('Passenger Emergency contact not found.')
+          functions.logger.error("Passenger Emergency contact not found.");
         }
-
       } else {
         const driver = (
           await admin
@@ -2012,6 +2123,32 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           req.body.tripPassengerId
         );
 
+        let type = "Normal";
+        switch (tripData.tripType) {
+          case 0:
+            type = "Normal";
+            break;
+          case 1:
+            type = "Sharing";
+            break;
+          case 2:
+            type = "Outstation";
+            break;
+          case 3:
+            type = "Rentals";
+            break;
+          case 4:
+            type = "Delivery";
+            break;
+          default:
+            type = "Normal";
+            break;
+        }
+        emailBody.template = emailBody.template.replace(
+          new RegExp("{tripType}", "g"),
+          type
+        );
+
         emailBody.template = emailBody.template.replace(
           new RegExp("{riderName}", "g"),
           passengerData.name
@@ -2053,7 +2190,9 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
         );
         emailBody.template = emailBody.template.replace(
           new RegExp("{fromAddress}", "g"),
-          ((tripData && tripData.origin && tripData.origin.address) ? tripData.origin.address : '-')
+          tripData && tripData.origin && tripData.origin.address
+            ? tripData.origin.address
+            : "-"
         );
 
         emailBody.template = emailBody.template.replace(
@@ -2063,7 +2202,9 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{toAddress}", "g"),
-          ( (tripData && tripData.destination && tripData.destination.address) ? tripData.destination.address : '-')
+          tripData && tripData.destination && tripData.destination.address
+            ? tripData.destination.address
+            : "-"
         );
 
         emailBody.template = emailBody.template.replace(
@@ -3665,6 +3806,35 @@ exports.tripPassengerUpdateTrigger = functions.database
         key
       );
 
+      // if(after && after.tripType) {
+      functions.logger.log("after:: ", after);
+      let type = "Normal";
+      switch (after.type) {
+        case 0:
+          type = "Normal";
+          break;
+        case 1:
+          type = "Sharing";
+          break;
+        case 2:
+          type = "Outstation";
+          break;
+        case 3:
+          type = "Rentals";
+          break;
+        case 4:
+          type = "Delivery";
+          break;
+        default:
+          type = "Normal";
+          break;
+      }
+      emailBody.template = emailBody.template.replace(
+        new RegExp("{tripType}", "g"),
+        type
+      );
+      // }
+
       emailBody.template = emailBody.template.replace(
         new RegExp("{riderName}", "g"),
         passenger.name
@@ -4573,30 +4743,43 @@ exports.driverBookingLogUpdateTrigger = functions.database
 exports.driverAssignmentCron = functions.pubsub
   .schedule("every 2 minutes")
   .onRun(() => {
-    admin.database()
+    admin
+      .database()
       .ref("scheduled-trips")
       .once("value")
       .then((snapshot) => {
         const tmp = snapshotToArray(snapshot, true, true, true).reverse();
-        functions.logger.info('scheduled-trips', tmp);
+        functions.logger.info("scheduled-trips", tmp);
         tmp.forEach((trip) => {
           const scheduleDate = moment(new Date(trip.departDate));
           const date = moment();
           if (date.isAfter(scheduleDate)) {
-            admin.database().ref("trip-passengers/").push({
-              ...trip,
-              status: "canceled",
-              cancellationReasonText: "No drivers were found for your ride",
-            }).then(async () => {
-              await admin.database().ref("scheduled-trips/" + trip.key).remove();
-            });
-          } else if (date.isBefore(scheduleDate) && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() < 10 && moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() > 1) {
+            admin
+              .database()
+              .ref("trip-passengers/")
+              .push({
+                ...trip,
+                status: "canceled",
+                cancellationReasonText: "No drivers were found for your ride",
+              })
+              .then(async () => {
+                await admin
+                  .database()
+                  .ref("scheduled-trips/" + trip.key)
+                  .remove();
+              });
+          } else if (
+            date.isBefore(scheduleDate) &&
+            moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() <
+              10 &&
+            moment.duration(scheduleDate.diff(moment(new Date()))).asMinutes() >
+              1
+          ) {
             allocateTrip(trip);
           }
         });
       });
   });
-
 
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
