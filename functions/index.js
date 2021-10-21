@@ -2057,13 +2057,14 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         amount = amount / (splitPayments.length + 1);
 
+        functions.logger.log('::>> ', companyData.logo);
         // Header Fixed
         let emailHeader = (
           await admin.database().ref("email-templates/header").once("value")
         ).val();
         emailHeader.template = emailHeader.template.replace(
           new RegExp("{date}", "g"),
-          moment(new Date(tripData.pickedUpAt)).format("Do MMMM YYYY")
+          moment(new Date(tripData.hasOwnProperty('pickedUpAt') ? tripData.pickedUpAt : tripData.departDate)).format("Do MMMM YYYY")
         );
         emailHeader.template = emailHeader.template.replace(
           new RegExp("{companyLogo}", "g"),
