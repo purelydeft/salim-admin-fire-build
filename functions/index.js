@@ -3807,9 +3807,9 @@ exports.tripPassengerUpdateTrigger = functions.database
       );
 
       // if(after && after.tripType) {
-      functions.logger.log("after:: ", after);
+      functions.logger.log("after:: ", after.tripType);
       let type = "Normal";
-      switch (after.type) {
+      switch (after.tripType) {
         case 0:
           type = "Normal";
           break;
