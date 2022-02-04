@@ -8,7 +8,12 @@ const fs = require("fs");
 const _ = require("lodash");
 const https = require("https");
 var pdf = require("html-pdf");
+var Razorpay = require("razorpay");
 const ADMIN_EMAIL = "complain@gmail.com";
+const cors = require("cors")({ origin: true });
+const { Curl } = require("node-libcurl");
+const axios = require("axios");
+const request = require("request");
 
 const mailingDetails = {
   host: "smtp.gmail.com",
@@ -53,19 +58,19 @@ const DEAL_STATUS_GOING = "going";
 /**
  * Uncomment for local testing
  */
-// const serviceAccount = require("E:/Projects/Salim/salim-admin-fire-build/functions/wrapspeedtaxi-286206-b824f46fc5fb.json");
+// const serviceAccount = require("E:/Projects/Salim/salim-admin-fire-build/functions/tezitaxi-286206-b824f46fc5fb.json");
+const serviceAccount = require("./wrapspeedtaxi-286206-b824f46fc5fb.json")
 
-// admin.initializeApp({
-//   credential: admin.credential.cert(serviceAccount),
-//   databaseURL: "https://wrapspeedtaxi-286206.firebaseio.com",
-//   // storageBucket: "wrapspeedtaxi-286206.appspot.com",
-// });
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://wrapspeedtaxi-286206.firebaseio.com",
+  storageBucket: "wrapspeedtaxi-286206.appspot.com",
+});
 
 // /**
 //  * Uncomment while uploading to production
-//  */
-admin.initializeApp();
-
+//  */ 
+// admin.initializeApp();
 function btoa(str) {
   return Buffer.from(str).toString("base64");
 }
@@ -748,7 +753,7 @@ exports.createAdmin = functions.database
     // );
     // emailBody.template = emailBody.template.replace(
     //   new RegExp("{companyWeb}", "g"),
-    //   "https://wrapspeedtaxi.com/"
+    //   "https://warpspeedtaxi.com/"
     // );
     // let emailFooter = (
     //   await admin.database().ref("email-templates/footer").once("value")
@@ -910,7 +915,7 @@ exports.createDriver = functions.database
     // );
     // emailBody.template = emailBody.template.replace(
     //   new RegExp("{companyWeb}", "g"),
-    //   "https://wrapspeedtaxi.com/"
+    //   "https://warpspeedtaxi.com/"
     // );
     // let emailFooter = (
     //   await admin.database().ref("email-templates/footer").once("value")
@@ -1052,7 +1057,7 @@ exports.updateDriver = functions.database
                 });
               admin
                 .database()
-                .ref("earnings/incentives")
+                .ref("earnings_new/incentives")
                 .push({
                   driverId: key,
                   amount: currentlyPurchasedSubscription.incentiveAmount,
@@ -1108,7 +1113,7 @@ async function generateEarningStatements(driverId, driver) {
   let statementRecords = [];
   await admin
     .database()
-    .ref("earnings/bonus")
+    .ref("earnings_new/bonus")
     .orderByChild("driverId")
     .equalTo(driverId)
     .once("value", async function (snapshot) {
@@ -1134,7 +1139,7 @@ async function generateEarningStatements(driverId, driver) {
 
   await admin
     .database()
-    .ref("earnings/incentives")
+    .ref("earnings_new/incentives")
     .orderByChild("driverId")
     .equalTo(driverId)
     .once("value", async function (snapshot) {
@@ -1164,7 +1169,7 @@ async function generateEarningStatements(driverId, driver) {
 
   await admin
     .database()
-    .ref("earnings/tips")
+    .ref("earnings_new/tips")
     .orderByChild("driverId")
     .equalTo(driverId)
     .once("value", async function (snapshot) {
@@ -1190,7 +1195,7 @@ async function generateEarningStatements(driverId, driver) {
 
   await admin
     .database()
-    .ref("earnings/trips")
+    .ref("earnings_new/trips")
     .orderByChild("driverId")
     .equalTo(driverId)
     .once("value", async function (snapshot) {
@@ -1460,7 +1465,7 @@ async function makeDataTable(statementRecords) {
       ${record.typeText}</td>
   <td style="font-size: 12px; line-height: 22px; color: #726c6c; padding-top: 4px; padding-bottom: 4px; padding-left: 4px; padding-right: 4px;"
       align="center">
-      + <span class="amount-credit">$${record.amount}</span></td>
+      + <span class="amount-credit">₹${record.amount}</span></td>
 </tr>`;
   });
   template += `</tbody></table>`;
@@ -1489,12 +1494,13 @@ async function makeMoneyTransferRequestToAdmin(key, driver, businessData) {
         driverName: driver.name,
         minimumAmountToMaintain: parseFloat(minimumAmount),
         withdrawalAmount: parseFloat(walletDetails.balance - minimumAmount),
-        bankDetails: {
-          bankName: driver.bankName ? driver.bankName : null,
-          accNo: driver.accNo ? driver.accNo : null,
-          holderName: driver.holderName ? driver.holderName : null,
-          routingNumber: driver.routingNumber ? driver.routingNumber : null,
-        },
+        // bankDetails: {
+        //   bankName: driver.bankName ? driver.bankName : null,
+        //   accNo: driver.accNo ? driver.accNo : null,
+        //   holderName: driver.holderName ? driver.holderName : null,
+        //   routingNumber: driver.routingNumber ? driver.routingNumber : null,
+        // },
+        upiId: driver.upiId,
         status: "pending",
         created: Date.now(),
       });
@@ -1629,7 +1635,7 @@ exports.createPassenger = functions.database
     // );
     // emailBody.template = emailBody.template.replace(
     //   new RegExp("{companyWeb}", "g"),
-    //   "https://wrapspeedtaxi.com/"
+    //   "https://warpspeedtaxi.com/"
     // );
     // let emailFooter = (
     //   await admin.database().ref("email-templates/footer").once("value")
@@ -2023,6 +2029,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
             .once("value")
         ).val();
 
+        console.log('tripData.passengerId:: ', tripData.passengerId);
         const passengerData = (
           await admin
             .database()
@@ -2036,7 +2043,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
             .ref("drivers/" + tripData.driverId)
             .once("value")
         ).val();
-
+          console.log('tripData.fareDetails:: ', tripData);
         let splitPayments = [];
         let amount = tripData.fareDetails.finalFare;
         if (tripData.waitingCharges) amount += tripData.waitingCharges;
@@ -2057,14 +2064,20 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         amount = amount / (splitPayments.length + 1);
 
-        functions.logger.log('::>> ', companyData.logo);
+        functions.logger.log("::>> ", companyData.logo);
         // Header Fixed
         let emailHeader = (
           await admin.database().ref("email-templates/header").once("value")
         ).val();
         emailHeader.template = emailHeader.template.replace(
           new RegExp("{date}", "g"),
-          moment(new Date(tripData.hasOwnProperty('pickedUpAt') ? tripData.pickedUpAt : tripData.departDate)).format("Do MMMM YYYY")
+          moment(
+            new Date(
+              tripData.hasOwnProperty("pickedUpAt")
+                ? tripData.pickedUpAt
+                : tripData.departDate
+            )
+          ).format("Do MMMM YYYY")
         );
         emailHeader.template = emailHeader.template.replace(
           new RegExp("{companyLogo}", "g"),
@@ -2149,20 +2162,20 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
           new RegExp("{tripType}", "g"),
           type
         );
-
+          console.log('passengerData:: ', passengerData);
         emailBody.template = emailBody.template.replace(
           new RegExp("{riderName}", "g"),
-          passengerData.name
+          passengerData ? passengerData.name : ''
         );
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{riderNumber}", "g"),
-          passengerData.phoneNumber
+          passengerData ? passengerData.phoneNumber : ''
         );
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{routeMap}", "g"),
-          "https://wrapspeedtaxi.com/public/email_images/map.png"
+          "https://warpspeedtaxi.com/public/email_images/map.png"
         );
 
         emailBody.template = emailBody.template.replace(
@@ -2231,17 +2244,17 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
         if (tripData.paymentMethod == "cash") {
           emailBody.template = emailBody.template.replace(
             new RegExp("{paidByImage}", "g"),
-            "https://wrapspeedtaxi.com/public/email_images/cash.png"
+            "https://warpspeedtaxi.com/public/email_images/cash.png"
           );
         } else if (tripData.paymentMethod == "wallet") {
           emailBody.template = emailBody.template.replace(
             new RegExp("{paidByImage}", "g"),
-            "https://wrapspeedtaxi.com/public/email_images/wallet.png"
+            "https://warpspeedtaxi.com/public/email_images/wallet.png"
           );
         } else {
           emailBody.template = emailBody.template.replace(
             new RegExp("{paidByImage}", "g"),
-            "https://wrapspeedtaxi.com/public/email_images/card.png"
+            "https://warpspeedtaxi.com/public/email_images/card.png"
           );
         }
 
@@ -2252,7 +2265,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
         emailBody.template = emailBody.template.replace(
           new RegExp("{companyWeb}", "g"),
-          "https://wrapspeedtaxi.com/"
+          "https://warpspeedtaxi.com/"
         );
 
         let emailFooter = (
@@ -2299,7 +2312,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
                 {
                   to:
                     req.body.type == "passenger"
-                      ? passengerData.email
+                      ? (passengerData ? passengerData.email : '')
                       : driverData.email,
                   bcc: null,
                   subject: "Invoice For Trip : #" + req.body.tripPassengerId,
@@ -2364,7 +2377,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
       moment().format("Do MMM YYYY hh:mm A")
     );
     const options = {
-      hostname: "cron.wrapspeedtaxi.com",
+      hostname: "cron.warpspeedtaxi.com",
       method: "GET",
     };
 
@@ -2375,6 +2388,7 @@ exports.generateInvoiceMail = functions.https.onRequest(async (req, res) => {
 
 exports.walletWithdrawalDailyScheduler = functions.pubsub
   .schedule("0 16 * * *")
+  // .schedule("0,5 0-23 * * *")
   .timeZone("Asia/Kolkata")
   .onRun(() => {
     admin
@@ -2383,77 +2397,77 @@ exports.walletWithdrawalDailyScheduler = functions.pubsub
       .once("value")
       .then((snapshot) => {
         const businessData = snapshot.val();
-        admin
-          .database()
-          .ref("drivers")
-          .once("value", async function (snapshot) {
-            drivers = snapshot.val();
-            for (const [driverKey, driversData] of Object.entries(drivers)) {
-              if (driversData.requestFrequency === "daily") {
-                makeMoneyTransferRequestToAdmin(
-                  driverKey,
-                  driversData,
-                  businessData
-                );
-              }
-            }
-          });
+        // admin
+        //   .database()
+        //   .ref("drivers")
+        //   .once("value", async function (snapshot) {
+        //     drivers = snapshot.val();
+        //     for (const [driverKey, driversData] of Object.entries(drivers)) {
+        //       if (driversData.requestFrequency === "daily") {
+        //         makeMoneyTransferRequestToAdmin(
+        //           driverKey,
+        //           driversData,
+        //           businessData
+        //         );
+        //       }
+        //     }
+        //   });
       });
   });
 exports.walletWithdrawalWeeklyScheduler = functions.pubsub
   .schedule("0 16 * * 1")
   .timeZone("Asia/Kolkata")
   .onRun(() => {
-    admin
-      .database()
-      .ref("business-management/")
-      .once("value")
-      .then((snapshot) => {
-        const businessData = snapshot.val();
-        admin
-          .database()
-          .ref("drivers")
-          .once("value", async function (snapshot) {
-            drivers = snapshot.val();
-            for (const [driverKey, driversData] of Object.entries(drivers)) {
-              if (driversData.requestFrequency === "weekly") {
-                makeMoneyTransferRequestToAdmin(
-                  driverKey,
-                  driversData,
-                  businessData
-                );
-              }
-            }
-          });
-      });
+    // admin
+    //   .database()
+    //   .ref("business-management/")
+    //   .once("value")
+    //   .then((snapshot) => {
+    //     const businessData = snapshot.val();
+    //     admin
+    //       .database()
+    //       .ref("drivers")
+    //       .once("value", async function (snapshot) {
+    //         drivers = snapshot.val();
+    //         for (const [driverKey, driversData] of Object.entries(drivers)) {
+    //           if (driversData.requestFrequency === "weekly") {
+    //             makeMoneyTransferRequestToAdmin(
+    //               driverKey,
+    //               driversData,
+    //               businessData
+    //             );
+    //           }
+    //         }
+    //       });
+    //   });
   });
 
 exports.walletWithdrawalMonthlyScheduler = functions.pubsub
   .schedule("0 16 1 * *")
   .timeZone("Asia/Kolkata")
   .onRun(() => {
-    admin
-      .database()
-      .ref("business-management/")
-      .once("value")
-      .then((snapshot) => {
-        const businessData = snapshot.val();
-        admin
-          .database()
-          .ref("drivers")
-          .once("value", async function (snapshot) {
-            drivers = snapshot.val();
-            for (const [driverKey, driversData] of Object.entries(drivers)) {
-              if (driversData.requestFrequency === "monthly") {
-                makeMoneyTransferRequestToAdmin(
-                  driverKey,
-                  driversData,
-                  businessData
-                );
-              }
-            }
-          });
-      });
+    // admin
+    //   .database()
+    //   .ref("business-management/")
+    //   .once("value")
+    //   .then((snapshot) => {
+    //     const businessData = snapshot.val();
+    //     admin
+    //       .database()
+    //       .ref("drivers")
+    //       .once("value", async function (snapshot) {
+    //         drivers = snapshot.val();
+    //         for (const [driverKey, driversData] of Object.entries(drivers)) {
+    //           if (driversData.requestFrequency === "monthly") {
+    //             makeMoneyTransferRequestToAdmin(
+    //               driverKey,
+    //               driversData,
+    //               businessData
+    //             );
+    //           }
+    //         }
+    //       });
+    //   });
   });
 
 exports.passengerComplaintCreateTrigger = functions.database
@@ -2519,7 +2533,7 @@ exports.passengerComplaintCreateTrigger = functions.database
     );
     emailBody.template = emailBody.template.replace(
       new RegExp("{companyWeb}", "g"),
-      "https://wrapspeedtaxi.com/"
+      "https://warpspeedtaxi.com/"
     );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
@@ -2653,7 +2667,7 @@ exports.passengerComplaintUpdateTrigger = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
+        "https://warpspeedtaxi.com/"
       );
       let emailFooter = (
         await admin.database().ref("email-templates/footer").once("value")
@@ -2758,7 +2772,7 @@ exports.driverComplaintCreateTrigger = functions.database
     );
     emailBody.template = emailBody.template.replace(
       new RegExp("{companyWeb}", "g"),
-      "https://wrapspeedtaxi.com/"
+      "https://warpspeedtaxi.com/"
     );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
@@ -2892,7 +2906,7 @@ exports.driverComplaintUpdateTrigger = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
+        "https://warpspeedtaxi.com/"
       );
       let emailFooter = (
         await admin.database().ref("email-templates/footer").once("value")
@@ -2997,7 +3011,7 @@ exports.driverComplaintUpdateTrigger = functions.database
 //     );
 //     emailBody.template = emailBody.template.replace(
 //       new RegExp("{companyWeb}", "g"),
-//       "https://wrapspeedtaxi.com/"
+//       "https://warpspeedtaxi.com/"
 //     );
 //     let emailFooter = (
 //       await admin.database().ref("email-templates/footer").once("value")
@@ -3129,7 +3143,7 @@ exports.driverComplaintUpdateTrigger = functions.database
 //         );
 //         emailBody.template = emailBody.template.replace(
 //           new RegExp("{companyWeb}", "g"),
-//           "https://wrapspeedtaxi.com/"
+//           "https://warpspeedtaxi.com/"
 //         );
 //         let emailFooter = (
 //           await admin.database().ref("email-templates/footer").once("value")
@@ -3280,7 +3294,7 @@ exports.driverComplaintUpdateTrigger = functions.database
 
 //     emailBody.template = emailBody.template.replace(
 //       new RegExp("{companyWeb}", "g"),
-//       "https://wrapspeedtaxi.com/"
+//       "https://warpspeedtaxi.com/"
 //     );
 
 //     let emailFooter = (
@@ -3448,7 +3462,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       for (const [key1, value] of Object.entries(passengerEmergency)) {
         if (value.mobile && value.alwaysShared) {
           const msg1 =
-            "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/tripPassenger/" +
+            "Track My Trip Details Via https://tracking.warpspeedtaxi.com/#/tripPassenger/" +
             encodeURIComponent(btoa(key));
           sendSMS("+91" + value.mobile, msg1);
         }
@@ -3466,7 +3480,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       for (const [key1, value] of Object.entries(driverEmergency)) {
         if (value.mobile && value.alwaysShared) {
           const msg1 =
-            "Track My Trip Details Via https://tracking.wrapspeedtaxi.com/#/trip/" +
+            "Track My Trip Details Via https://tracking.warpspeedtaxi.com/#/trip/" +
             encodeURIComponent(btoa(after.tripId));
           sendSMS("+91" + value.mobile, msg1);
         }
@@ -3500,7 +3514,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{routeMap}", "g"),
-        "https://wrapspeedtaxi.com/public/email_images/map.png"
+        "https://warpspeedtaxi.com/public/email_images/map.png"
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{driverName}", "g"),
@@ -3528,7 +3542,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
+        "https://warpspeedtaxi.com/"
       );
 
       let emailFooter = (
@@ -3848,7 +3862,7 @@ exports.tripPassengerUpdateTrigger = functions.database
 
       emailBody.template = emailBody.template.replace(
         new RegExp("{routeMap}", "g"),
-        "https://wrapspeedtaxi.com/public/email_images/map.png"
+        "https://warpspeedtaxi.com/public/email_images/map.png"
       );
 
       emailBody.template = emailBody.template.replace(
@@ -3914,17 +3928,17 @@ exports.tripPassengerUpdateTrigger = functions.database
       if (after.paymentMethod == "cash") {
         emailBody.template = emailBody.template.replace(
           new RegExp("{paidByImage}", "g"),
-          "https://wrapspeedtaxi.com/public/email_images/cash.png"
+          "https://warpspeedtaxi.com/public/email_images/cash.png"
         );
       } else if (after.paymentMethod == "wallet") {
         emailBody.template = emailBody.template.replace(
           new RegExp("{paidByImage}", "g"),
-          "https://wrapspeedtaxi.com/public/email_images/wallet.png"
+          "https://warpspeedtaxi.com/public/email_images/wallet.png"
         );
       } else {
         emailBody.template = emailBody.template.replace(
           new RegExp("{paidByImage}", "g"),
-          "https://wrapspeedtaxi.com/public/email_images/card.png"
+          "https://warpspeedtaxi.com/public/email_images/card.png"
         );
       }
 
@@ -3935,7 +3949,7 @@ exports.tripPassengerUpdateTrigger = functions.database
 
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
+        "https://warpspeedtaxi.com/"
       );
 
       let emailFooter = (
@@ -4018,7 +4032,7 @@ exports.tripPassengerUpdateTrigger = functions.database
           });
         admin
           .database()
-          .ref("earnings/trips")
+          .ref("earnings_new/trips")
           .push({
             driverId: driverId,
             driverName: driver.name,
@@ -4083,7 +4097,7 @@ exports.tripPassengerUpdateTrigger = functions.database
           });
         admin
           .database()
-          .ref("earnings/trips")
+          .ref("earnings_new/trips")
           .push({
             driverId: driverId,
             driverName: driver.name,
@@ -4178,7 +4192,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{routeMap}", "g"),
-        "https://wrapspeedtaxi.com/public/email_images/map.png"
+        "https://warpspeedtaxi.com/public/email_images/map.png"
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{driverName}", "g"),
@@ -4206,7 +4220,7 @@ exports.tripPassengerUpdateTrigger = functions.database
       );
       emailBody.template = emailBody.template.replace(
         new RegExp("{companyWeb}", "g"),
-        "https://wrapspeedtaxi.com/"
+        "https://warpspeedtaxi.com/"
       );
 
       let emailFooter = (
@@ -4406,7 +4420,7 @@ exports.dirverUpdateTrigger = functions.database
     );
     emailBody.template = emailBody.template.replace(
       new RegExp("{companyWeb}", "g"),
-      "https://wrapspeedtaxi.com/"
+      "https://warpspeedtaxi.com/"
     );
     let emailFooter = (
       await admin.database().ref("email-templates/footer").once("value")
@@ -4567,6 +4581,8 @@ exports.onDriverLocationCreate = functions.database
   .onCreate(function (snapshot, context) {
     const driverId = context.params.id;
     const location = snapshot.val();
+    console.log("driver-login-history:: " + driverId);
+    functions.logger.log("driver-login-history:: " + driverId);
     admin.database().ref(`driver-login-history/${driverId}`).push({
       action: 1,
       description: "Logged In",
@@ -4673,7 +4689,7 @@ exports.onDriverLocationUpdate = functions.database
 //               transactionType: "INCENTIVE",
 //               isReward: true,
 //             });
-//             admin.database().ref("earnings/incentives").push({
+//             admin.database().ref("earnings_new/incentives").push({
 //               driverId: driverId,
 //               amount: rewardData.reward,
 //               description: "Rewarded for ride counts today",
@@ -4728,7 +4744,7 @@ exports.driverBookingLogUpdateTrigger = functions.database
               transactionType: "INCENTIVE",
               isReward: true,
             });
-            admin.database().ref("earnings/incentives").push({
+            admin.database().ref("earnings_new/incentives").push({
               driverId: driverId,
               amount: rewardData.reward,
               description: "Rewarded for ride counts today",
@@ -4782,6 +4798,473 @@ exports.driverAssignmentCron = functions.pubsub
       });
   });
 
+exports.onDriverRequestStatusUpdate = functions.database
+  .ref("approvals/{id}")
+  .onUpdate(async function (snapshot, context) {
+    const id = context.params.id;
+    const data = (
+      await admin.database().ref(`approvals/${id}`).once("value")
+    ).val();
+
+    if (data) {
+      let notiTitle = "";
+      let notiMsg = "";
+      if (data.status == "Approved" && data.type == "email") {
+        admin.auth().updateUser(data.uid, {
+          email: data.newEmail,
+        });
+        notiTitle = "Email approved";
+        notiMsg =
+          "Your email change request have been approved by admin. You have to login again with new email.";
+      }
+
+      if (data.status == "Approved" && data.type == "phone") {
+        admin.auth().updateUser(data.uid, {
+          phoneNumber: "+91" + data.newPhone,
+        });
+        notiTitle = "Phone number approved";
+        notiMsg =
+          "Your Phone number change request have been approved by admin. You have to login again with new phone number.";
+      }
+
+      if (data.status == "Approved" && data.type == "bank") {
+        // functions.database.ref("drivers/{id}");
+        admin
+          .database()
+          .ref("drivers/" + id)
+          .update({
+            bankName: data.bankName,
+            holderName: data.holderName,
+            accNo: data.accNo,
+            routingNumber: data.routingNumber,
+          });
+        notiTitle = "Bank details approved";
+        notiMsg =
+          "Your bank details change request have been approved by admin.";
+      }
+
+      if (data.status == "Approved" && data.type == "vehicle") {
+        // functions.database.ref("drivers/{id}");
+        admin
+          .database()
+          .ref("drivers/" + id)
+          .update({
+            type: type.vehicleType,
+            brand: type.brand,
+            model: type.model,
+            plate: type.plate,
+          });
+        notiTitle = "Vehicle details approved";
+        notiMsg =
+          "Your vehicle details change request have been approved by admin.";
+      }
+
+      if (data.status == "Approved" && data.type == "Documents") {
+        notiTitle = "Documents approved";
+        notiMsg = "Your documents change request have been approved by admin.";
+      }
+
+      const driverNotification = (
+        await admin
+          .database()
+          .ref("driver-push-notifications/" + driverKey)
+          .once("value")
+      ).val();
+      if (driverNotification && driverNotification.isPushEnabled) {
+        sendMessage(driverNotification.pushToken, notiTitle, notiMsg);
+      }
+    }
+  });
+
 /************************************End Live DB Functions*************************************************/
 /************************************Testing DB Functions*************************************************/
 /************************************End Testing Functions*************************************************/
+var razorpayDataTest = {
+  key_id: "rzp_test_beVCy3WSFzvdgp",
+  key_secret: "EgwYBWDSjT0ohRVoivWi64EJ",
+};
+
+var razorpayData = {
+  key_id: "rzp_live_hpBV9cTRibj9LJ",
+  key_secret: "N1QgW5a7ZxM360QLFemOhk1B",
+};
+/***
+ * Razor pay code
+ */
+var instance = new Razorpay({
+  key_id: razorpayData.key_id,
+  key_secret: razorpayData.key_secret,
+});
+
+var testInstance = new Razorpay({
+  key_id: razorpayDataTest.key_id,
+  key_secret: razorpayDataTest.key_secret,
+});
+
+exports.createOrderRZ = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    console.log("req:: ", req.body);
+    let orderId = "";
+    let status = "success";
+    let message = "";
+    let data;
+    if (req.body.hasOwnProperty("test") && req.body.test) {
+      await testInstance.orders
+        .create({
+          amount: Math.round(parseFloat(req.body.amount)), //Amount is in paisa i.e. 100 is 1rs
+          currency: req.body.currency,
+        })
+        .then((val) => {
+          console.log("Instance val", val);
+          orderId = val.id;
+          data = val;
+          status = "success";
+        })
+        .catch((e) => {
+          status = "error";
+          orderId = "";
+          message = e;
+          data = e;
+          console.log("Instance error", e);
+        });
+    } else {
+      await instance.orders
+        .create({
+          amount: Math.round(parseFloat(req.body.amount)), //Amount is in paisa i.e. 100 is 1rs
+          currency: req.body.currency,
+        })
+        .then((val) => {
+          console.log("Instance val", val);
+          orderId = val.id;
+          data = val;
+          status = "success";
+        })
+        .catch((e) => {
+          status = "error";
+          orderId = "";
+          message = e;
+          data = e;
+          console.log("Instance error", e);
+        });
+    }
+
+    res.status(200).json({
+      orderID: orderId,
+      date: new Date().getTime(),
+      status: status,
+      data: data,
+    });
+  }
+});
+
+exports.createRefundRZ = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    console.log("req:: ", req.body);
+    let orderId = "";
+    let status = "success";
+    let message = "";
+    await instance.payments
+      .refund(req.body.paymentId, {
+        amount: req.body.amount,
+        speed: "normal",
+        notes: {
+          notes_key_1: "Driver not found refund.",
+        },
+      })
+      .then(() => {
+        status = "success";
+        message = "Your ride amount will be refund in 5-7 days.";
+      })
+      .catch((e) => {
+        status = "error";
+        message = e;
+      });
+    res.status(200).json({
+      orderID: orderId,
+      date: new Date().getTime(),
+      status: status,
+      message: message,
+    });
+  }
+});
+
+exports.createNewCustomerRZ = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    console.log("req:: ", req.body);
+    let status = "success";
+    let message = "";
+    instance.customers
+      .create({
+        name: "Vivek Sharma",
+        contact: 9501299029,
+        email: "Vivek@yopmail.com",
+        fail_existing: 0,
+      })
+      .then((data) => {
+        console.log("customer create data:: ", data);
+        res.status(200).json({
+          date: new Date().getTime(),
+          status: status,
+          response: data,
+          message: message,
+        });
+      })
+      .catch((error) => {
+        console.log("customer create error:: ", error);
+        status = "error";
+        res.status(200).json({
+          date: new Date().getTime(),
+          status: status,
+          response: error,
+          message: message,
+        });
+      });
+  }
+});
+
+/**
+ * First Step Create contact (Sign up and signIn)
+ */
+exports.createContactRZ = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    console.log("Req:: ", req.body);
+    const authorization =
+      `Basic ` + btoa(`${razorpayData.key_id}:${razorpayData.key_secret}`);
+
+    let postData = JSON.stringify({
+      name: req.body.name,
+      email: req.body.email,
+      contact: req.body.phoneNumber,
+      type: "vendor",
+    });
+
+    var options = {
+      method: "POST",
+      url: "https://api.razorpay.com/v1/contacts",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authorization,
+      },
+      body: postData,
+    };
+
+    request(options, function (error, response) {
+      if (error) {
+        res.status(200).json({
+          date: new Date().getTime(),
+          ...error,
+        });
+      } else {
+        res.status(200).json({
+          date: new Date().getTime(),
+          ...response,
+        });
+      }
+    });
+  }
+});
+
+/**
+ * Second Step Create Fund Account with UPI ID
+ */
+exports.createFundAccountRZ = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    console.log("req:: ", req.body);
+    let status = "success";
+    let message = "";
+
+    let postData = {
+      contact_id: req.body.rzContactId,
+      account_type: "vpa",
+      vpa: {
+        address: req.body.upiId,
+      },
+    };
+    instance.fundAccount
+      .create(postData)
+      .then((response) => {
+        res.status(200).json({
+          date: new Date().getTime(),
+          ...response,
+        });
+      })
+      .catch((e) => {
+        res.status(200).json({
+          date: new Date().getTime(),
+          ...e,
+        });
+      });
+  }
+});
+
+/**
+ * Third Step Transfer Funds to UPI ID
+ */
+exports.createFundTransferRZ = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    console.log("req:: ", instance);
+    const authorization =
+      `Basic ` + btoa(`${razorpayData.key_id}:${razorpayData.key_secret}`);
+
+    let postData = {
+      account_number: "2323230005842273",
+      fund_account_id: "fa_IjDhwUqN2coqvC",
+      amount: 100,
+      currency: "INR",
+      mode: "UPI",
+      purpose: "payout",
+      queue_if_low_balance: true,
+    };
+
+    var options = {
+      method: "POST",
+      url: "https://api.razorpay.com/v1/payouts",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authorization,
+      },
+      body: JSON.stringify(postData),
+    };
+
+    request(options, function (error, response) {
+      if (error) {
+        res.status(200).json({
+          date: new Date().getTime(),
+          ...error,
+        });
+      } else {
+        res.status(200).json({
+          date: new Date().getTime(),
+          response: JSON.parse(response.body),
+        });
+      }
+    });
+  }
+});
+
+/**
+ * Third Step Transfer Funds to UPI ID
+ */
+exports.submitResume = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Credentials", "true"); // vital
+  if (req.method === "OPTIONS") {
+    // Send response to OPTIONS requests
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+  } else {
+    let params = req.body;
+    let bucket = admin.storage().bucket();
+
+    // delete params.file
+    // res.status(200).json({
+    //   date: new Date().getTime(),
+    //   ...req.body,
+    // });
+    let fl = req.body.file.split('base64,')[1];
+    const imageBuffer = Buffer.from(fl, "base64");
+    const imageByteArray = new Uint8Array(imageBuffer);
+    const file = bucket.file("resumes/" + params.fileName);
+    console.log('file:: ', fl);
+    const options = {
+      resumable: false,
+      metadata: { contentType: params.fileType },
+    };
+    file
+      .save(imageByteArray, options)
+      .then((stuff) => {
+        console.log("stuff:: ", stuff);
+        return file.getSignedUrl({
+          action: "read",
+          expires: "03-09-2500",
+        });
+
+        })
+      .then((urls) => {
+        console.log("urls:: ", urls);
+
+        const url = urls[0];
+        console.log(`Image url = ${url}`);
+        delete params.file;
+        params.resumeUrl = url;
+        console.log('params1:: ', params);
+        admin
+          .database()
+          .ref("applied_job/")
+          .push({
+            ...params
+          })
+          .then(async (d) => {
+            res.status(200).json({
+              date: new Date().getTime(),
+              status: 'success',
+              data: d
+            });
+          }).catch((error) => {
+            res.status(200).json({
+              date: new Date().getTime(),
+              status: 'error',
+              error: error
+            });
+          });
+      })
+      .catch((err) => {
+        console.log(`Unable to upload image ${err}`);
+        res.status(200).json({
+          date: new Date().getTime(),
+          status: 'error',
+          error: err,
+        });
+      });
+  }
+});
