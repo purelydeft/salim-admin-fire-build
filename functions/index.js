@@ -36,7 +36,6 @@ const twilioNumber = "+17088661422";
 
 const testAccountSid = "ACbbba6ad2e8951f35b48aada1dfc72a2f";
 const testAuthToken = "89b2162ddf5f2853ec3ec46eb2e04b1a";
-
 const twilioService = "MG12608acdbaf92ba85c6972bc2fa6a3d7";
 
 const client = require("twilio")(liveAccountSid, liveAuthToken);
